@@ -1,0 +1,38 @@
+[server]
+port = 8090
+bind = "0.0.0.0"
+
+[storage]
+base_path = "/data"
+ring_buffer_dir = "/tmp/rustycam_ring"
+ring_segment_seconds = 5
+ring_segments_kept = 12   # 60s ring buffer
+pre_event_seconds = 30
+post_event_seconds = 15
+
+[database]
+path = "/data/rustycam.db"
+
+[[cameras]]
+id = "cam_01"
+name = "Front Door"
+ip = "192.168.1.101"
+username = "admin"
+password = "changeme"
+rtsp_stream = "sub"   # sub uses less CPU; use "main" for full res
+
+[[cameras]]
+id = "cam_02"
+name = "Backyard"
+ip = "192.168.1.102"
+username = "admin"
+password = "changeme"
+rtsp_stream = "sub"
+
+[[cameras]]
+id = "cam_front_door_west"
+name = "Front Door West"
+ip = "192.168.20.10"
+username = "admin"
+password = "changeme"
+rtsp_stream = "sub"
