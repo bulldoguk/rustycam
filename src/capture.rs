@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::process::{Child, Command};
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::config::{CameraConfig, StorageConfig};
@@ -50,13 +50,16 @@ pub async fn capture_event(
     cfg: &StorageConfig,
     db: &SqlitePool,
     timestamp: DateTime<Utc>,
+    topics: &[String],
 ) -> Result<()> {
     let event_id = Uuid::new_v4().to_string();
 
-    // Snapshot: pull immediately before the subject moves away
+    // Snapshot: grab a frame directly from the RTSP stream at trigger time.
+    // Faster than the camera's HTTP snapshot API and captures the exact moment.
     let snapshot = storage::snapshot_path(&cfg.base_path, &cam.id, &event_id, &timestamp);
     tokio::fs::create_dir_all(snapshot.parent().unwrap()).await?;
-    fetch_snapshot(cam, &snapshot).await?;
+    frame_from_rtsp(cam, &snapshot).await?;
+    tag_file(cam, &snapshot, topics).await;
     info!("Snapshot saved: {}", snapshot.display());
 
     // Wait for post-event footage to accumulate in the ring buffer
@@ -66,6 +69,7 @@ pub async fn capture_event(
     let clip = storage::clip_path(&cfg.base_path, &cam.id, &event_id, &timestamp);
     tokio::fs::create_dir_all(clip.parent().unwrap()).await?;
     extract_clip(cam, cfg, &clip).await?;
+    tag_file(cam, &clip, topics).await;
     info!("Clip saved: {}", clip.display());
 
     storage::insert_event(db, &event_id, cam, &timestamp, &snapshot, &clip).await?;
@@ -73,14 +77,70 @@ pub async fn capture_event(
     Ok(())
 }
 
-async fn fetch_snapshot(cam: &CameraConfig, dest: &PathBuf) -> Result<()> {
-    let bytes = reqwest::get(cam.snapshot_url())
-        .await
-        .context("Snapshot HTTP request failed")?
-        .bytes()
+async fn tag_file(cam: &CameraConfig, path: &PathBuf, topics: &[String]) {
+    // Extract the last path segment of each ONVIF topic as a human-readable label
+    // e.g. "tns1:RuleEngine/MyRuleDetector/PeopleDetect" → "PeopleDetect"
+    let labels: Vec<String> = topics
+        .iter()
+        .map(|t| t.rsplit('/').next().unwrap_or(t.as_str()).to_string())
+        .collect();
+
+    let description = format!("{} — {}", cam.name, labels.join(", "));
+
+    let mut args: Vec<String> = vec![
+        format!("-Make=Reolink"),
+        format!("-Model={}", cam.id),
+        format!("-ImageDescription={}", description),
+        format!("-Comment={}", description),
+        "-overwrite_original".into(),
+    ];
+    for label in &labels {
+        args.push(format!("-Keywords+={}", label));
+        args.push(format!("-Subject+={}", label));
+    }
+    args.push(format!("-Keywords+={}", cam.id));
+    args.push(format!("-Subject+={}", cam.id));
+    args.push(format!("-Keywords+=rustycam"));
+    args.push(format!("-Subject+=rustycam"));
+    args.push(path.to_string_lossy().into_owned());
+
+    let result = Command::new("exiftool")
+        .args(&args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .await;
+
+    match result {
+        Ok(s) if s.success() => {}
+        Ok(_) => warn!("exiftool returned non-zero for {}", path.display()),
+        Err(e) => warn!("exiftool not available, skipping metadata tagging: {e}"),
+    }
+}
+
+async fn frame_from_rtsp(cam: &CameraConfig, dest: &PathBuf) -> Result<()> {
+    // Pull one frame directly from the live RTSP stream at the moment of trigger.
+    // -strict unofficial: allows MJPEG output from limited-range H.264 YUV.
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-rtsp_transport", "tcp",
+            "-i", &cam.rtsp_url(),
+            "-frames:v", "1",
+            "-update", "1",
+            "-strict", "unofficial",
+            "-q:v", "2",
+            dest.to_str().unwrap(),
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
         .await?;
 
-    tokio::fs::write(dest, &bytes).await?;
+    if !status.success() {
+        bail!("ffmpeg RTSP snapshot failed for camera {}", cam.id);
+    }
+
     Ok(())
 }
 

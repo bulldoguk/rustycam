@@ -103,9 +103,9 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
             continue;
         }
 
-        let active_topics: Vec<&str> = events.iter()
+        let active_topics: Vec<String> = events.iter()
             .filter(|e| e.is_active)
-            .map(|e| e.topic.as_str())
+            .map(|e| e.topic.clone())
             .collect();
         info!("[{}] Triggered — topics: {:?}", config.id, active_topics);
 
@@ -122,7 +122,7 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
         let db = db.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = capture::capture_event(&config, &storage_cfg, &db, timestamp).await {
+            if let Err(e) = capture::capture_event(&config, &storage_cfg, &db, timestamp, &active_topics).await {
                 tracing::error!("[{}] Capture error: {e:#}", config.id);
             }
         });

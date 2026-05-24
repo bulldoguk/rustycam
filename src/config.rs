@@ -57,12 +57,6 @@ impl CameraConfig {
         format!("http://{}/onvif/event_service", self.ip)
     }
 
-    pub fn snapshot_url(&self) -> String {
-        format!(
-            "http://{}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=rustycam&user={}&password={}",
-            self.ip, self.username, self.password
-        )
-    }
 }
 
 pub fn load(path: &str) -> Result<Config> {
