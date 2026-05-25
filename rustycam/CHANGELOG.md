@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.10 (2026-05-25)
+
+### Added
+- Write XMP sidecar files (`.xmp`) alongside every snapshot and clip for Immich tag compatibility — tags include `camera/<id>`, `event/<type>`, and `rustycam`
+
 ## 0.1.9 (2026-05-25)
 
 ### Fixed

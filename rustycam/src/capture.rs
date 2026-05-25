@@ -60,6 +60,7 @@ pub async fn capture_event(
     tokio::fs::create_dir_all(snapshot.parent().unwrap()).await?;
     frame_from_rtsp(cam, &snapshot).await?;
     tag_file(cam, &snapshot, topics).await;
+    write_xmp_sidecar(cam, &snapshot, topics).await;
     info!("Snapshot saved: {}", snapshot.display());
 
     // Wait for post-event footage to accumulate in the ring buffer
@@ -70,11 +71,46 @@ pub async fn capture_event(
     tokio::fs::create_dir_all(clip.parent().unwrap()).await?;
     extract_clip(cam, cfg, &clip).await?;
     tag_file(cam, &clip, topics).await;
+    write_xmp_sidecar(cam, &clip, topics).await;
     info!("Clip saved: {}", clip.display());
 
     storage::insert_event(db, &event_id, cam, &timestamp, &snapshot, &clip).await?;
 
     Ok(())
+}
+
+async fn write_xmp_sidecar(cam: &CameraConfig, path: &PathBuf, topics: &[String]) {
+    let labels: Vec<String> = topics
+        .iter()
+        .map(|t| t.rsplit('/').next().unwrap_or(t.as_str()).to_string())
+        .collect();
+
+    let sidecar = PathBuf::from(format!("{}.xmp", path.to_string_lossy()));
+
+    // First tag sets the value, subsequent tags append with +=
+    let mut args: Vec<String> = vec![
+        format!("-XMP-digiKam:TagsList=camera/{}", cam.id),
+    ];
+    for label in &labels {
+        args.push(format!("-XMP-digiKam:TagsList+=event/{}", label));
+    }
+    args.push("-XMP-digiKam:TagsList+=rustycam".into());
+    args.push("-o".into());
+    args.push(sidecar.to_string_lossy().into_owned());
+    args.push(path.to_string_lossy().into_owned());
+
+    let result = Command::new("exiftool")
+        .args(&args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .await;
+
+    match result {
+        Ok(s) if s.success() => {}
+        Ok(_) => warn!("exiftool sidecar write returned non-zero for {}", path.display()),
+        Err(e) => warn!("exiftool not available, skipping XMP sidecar: {e}"),
+    }
 }
 
 async fn tag_file(cam: &CameraConfig, path: &PathBuf, topics: &[String]) {
