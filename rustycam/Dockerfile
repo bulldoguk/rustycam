@@ -12,7 +12,7 @@ RUN cargo build --release
 # ---- runtime ----
 FROM alpine:3.21
 
-RUN apk add --no-cache ffmpeg ca-certificates jq bash
+RUN apk add --no-cache ffmpeg ca-certificates jq bash exiftool
 
 WORKDIR /app
 COPY --from=builder /app/target/release/rustycam /app/rustycam

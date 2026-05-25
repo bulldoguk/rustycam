@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.8 (2026-05-25)
+
+### Fixed
+- Add `exiftool` to Alpine runtime image for EXIF metadata tagging
+
 ## 0.1.7 (2026-05-24)
 
 ### Fixed
