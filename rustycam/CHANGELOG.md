@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6 (2026-05-24)
+
+### Fixed
+- Build as a statically-linked musl binary — eliminates all glibc version dependencies
+- Switch `reqwest` to `rustls-tls` (removes openssl dependency, compatible with musl)
+- Runtime reverts to `debian:bookworm-slim` (glibc version no longer relevant)
+
 ## 0.1.5 (2026-05-24)
 
 ### Fixed
