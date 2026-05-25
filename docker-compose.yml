@@ -1,12 +1,16 @@
 services:
   rustycam:
-    build: .
+    build:
+      context: ./rustycam
     restart: unless-stopped
     ports:
       - "8090:8090"
     volumes:
-      - ./config.toml:/app/config.toml:ro
-      - /mnt/cameras:/data          # adjust to your storage mount
+      - /mnt/nas/cameras:/share/rustycam  # adjust to your NAS mount path
+      - rustycam_data:/data
     environment:
       RUST_LOG: rustycam=info
     network_mode: host              # simplest for reaching camera IPs directly
+
+volumes:
+  rustycam_data:
