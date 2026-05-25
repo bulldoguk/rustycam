@@ -7,6 +7,7 @@ pub struct Config {
     pub server: ServerConfig,
     pub storage: StorageConfig,
     pub database: DatabaseConfig,
+    #[serde(default)]
     pub cameras: Vec<CameraConfig>,
 }
 

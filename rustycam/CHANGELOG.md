@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.7 (2026-05-24)
+
+### Fixed
+- Switch to Alpine-based build and runtime — musl libc by default, no glibc anywhere
+- `cameras` config field is now optional (defaults to empty list) so the add-on starts cleanly before any cameras are configured
+
 ## 0.1.6 (2026-05-24)
 
 ### Fixed

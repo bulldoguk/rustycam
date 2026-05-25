@@ -1,24 +1,21 @@
-FROM rust:bookworm AS builder
+FROM rust:alpine AS builder
 
-RUN apt-get update && apt-get install -y musl-tools && rm -rf /var/lib/apt/lists/*
-RUN rustup target add x86_64-unknown-linux-musl
+RUN apk add --no-cache musl-dev pkgconfig gcc
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock* ./
 COPY src ./src
 COPY migrations ./migrations
 
-RUN cargo build --release --target x86_64-unknown-linux-musl
+RUN cargo build --release
 
 # ---- runtime ----
-FROM debian:bookworm-slim
+FROM alpine:3.21
 
-RUN apt-get update \
-    && apt-get install -y ffmpeg ca-certificates jq \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ffmpeg ca-certificates jq bash
 
 WORKDIR /app
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/rustycam /app/rustycam
+COPY --from=builder /app/target/release/rustycam /app/rustycam
 COPY migrations ./migrations
 COPY run.sh /app/run.sh
 RUN chmod +x /app/run.sh
