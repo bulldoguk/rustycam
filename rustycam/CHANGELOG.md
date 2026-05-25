@@ -1,0 +1,26 @@
+# Changelog
+
+## 0.1.1 (2026-05-24)
+
+### Fixed
+- Bumped Rust builder image to 1.85 to support `edition2024` required by `base64ct 1.8.3`
+- Dockerfile now correctly installs `jq` and uses `run.sh` as the container entrypoint
+
+## 0.1.0 (2026-05-24)
+
+Initial release.
+
+### Features
+- Continuous RTSP ring buffer per camera via ffmpeg
+- ONVIF pull-point event subscription with WS-Security digest authentication
+- AI-only event triggering — people, face, vehicle, pet, field detector, zone, custom rules; raw motion alarm excluded to reduce false positives
+- Event capture: RTSP snapshot at trigger time + clip assembled from ring buffer segments
+- Configurable pre/post event window
+- EXIF metadata tagging on snapshots and clips (camera name, event type, keywords)
+- SQLite event database at `/data/rustycam.db`
+- ONVIF subscription auto-renewal every 30 minutes
+- Per-camera crash recovery with automatic restart
+- 5-second event debounce
+- Health endpoint at `/health`
+- Home Assistant add-on packaging with NAS storage via `/share`
+- Camera credentials configured through HA UI (passwords masked)
