@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 (2026-05-24)
+
+### Fixed
+- Bumped Rust builder image to 1.86 — `icu_properties_data`, `icu_provider`, and `idna_adapter` require rustc 1.86
+
 ## 0.1.1 (2026-05-24)
 
 ### Fixed
