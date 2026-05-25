@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.9 (2026-05-25)
+
+### Fixed
+- Map `media:rw` in add-on config so `/media/...` storage paths correctly reach the HA media folder and NAS
+
 ## 0.1.8 (2026-05-25)
 
 ### Fixed

@@ -31,7 +31,7 @@ Only AI-classification events trigger captures. Raw motion alarms are intentiona
 
 | Option | Default | Description |
 |---|---|---|
-| `storage_path` | `/share/rustycam` | Where footage is written. `/share` maps to your HA share directory. Point this at your NAS mount. |
+| `storage_path` | `/share/rustycam` | Where footage is written. Use `/share/...` for the HA share folder or `/media/...` for the HA media library — both are mapped to the host and can be backed by a NAS. |
 | `pre_event_seconds` | `15` | Seconds of footage to include before the trigger |
 | `post_event_seconds` | `15` | Seconds of footage to include after the trigger |
 | `cameras` | `[]` | List of cameras (see below) |
