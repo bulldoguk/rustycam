@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.13 (2026-05-25)
+
+### Changed
+- Restore full ONVIF topic logging so noisy cameras can be identified
+
 ## 0.1.12 (2026-05-25)
 
 ### Changed

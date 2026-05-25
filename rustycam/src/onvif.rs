@@ -222,10 +222,7 @@ fn parse_events(xml: &str, camera_id: &str) -> Result<Vec<OnvifEvent>> {
                                     is_active,
                                 });
                             } else {
-                                let ignored = IGNORED_TOPICS.iter().any(|t| topic.contains(t));
-                                if !ignored {
-                                    warn!("[{camera_id}] Unknown ONVIF topic (not triggering): {topic}");
-                                }
+                                warn!("[{camera_id}] Unknown ONVIF topic (not triggering): {topic}");
                             }
                         }
                     }
