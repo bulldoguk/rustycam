@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.11 (2026-05-25)
+
+### Changed
+- XMP sidecar files written for clips only — JPG snapshots use EXIF metadata directly
+
 ## 0.1.10 (2026-05-25)
 
 ### Added

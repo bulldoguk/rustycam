@@ -60,7 +60,6 @@ pub async fn capture_event(
     tokio::fs::create_dir_all(snapshot.parent().unwrap()).await?;
     frame_from_rtsp(cam, &snapshot).await?;
     tag_file(cam, &snapshot, topics).await;
-    write_xmp_sidecar(cam, &snapshot, topics).await;
     info!("Snapshot saved: {}", snapshot.display());
 
     // Wait for post-event footage to accumulate in the ring buffer
