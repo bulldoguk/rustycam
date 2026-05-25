@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 (2026-05-24)
+
+### Fixed
+- Switch Rust builder to `rust:slim` (tracks latest stable) to avoid recurring rustc version floor issues
+- Remove deprecated `armv7` arch value from add-on config
+
 ## 0.1.2 (2026-05-24)
 
 ### Fixed
