@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.12 (2026-05-25)
+
+### Changed
+- Silence log warnings for known-but-ignored ONVIF topics (`CellMotionDetector`, `AudioAlarm`) — these are intentionally excluded, not unknown
+
 ## 0.1.11 (2026-05-25)
 
 ### Changed

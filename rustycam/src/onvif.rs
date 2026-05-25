@@ -23,6 +23,13 @@ const TRIGGER_TOPICS: &[&str] = &[
     "MyRuleDetector",
 ];
 
+// Known topics we deliberately ignore — no warning logged for these.
+// CellMotionDetector is Reolink's grid-based motion; too noisy to trigger on.
+const IGNORED_TOPICS: &[&str] = &[
+    "CellMotionDetector",
+    "AudioAlarm",
+];
+
 #[derive(Debug, Clone)]
 pub struct OnvifEvent {
     pub topic: String,
@@ -215,8 +222,10 @@ fn parse_events(xml: &str, camera_id: &str) -> Result<Vec<OnvifEvent>> {
                                     is_active,
                                 });
                             } else {
-                                // Log unknown topics so users can add them to TRIGGER_TOPICS
-                                warn!("[{camera_id}] Unknown ONVIF topic (not triggering): {topic}");
+                                let ignored = IGNORED_TOPICS.iter().any(|t| topic.contains(t));
+                                if !ignored {
+                                    warn!("[{camera_id}] Unknown ONVIF topic (not triggering): {topic}");
+                                }
                             }
                         }
                     }
