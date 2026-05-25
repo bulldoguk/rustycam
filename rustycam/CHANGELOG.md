@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 (2026-05-24)
+
+### Fixed
+- Pin builder to `rust:bookworm` to match the `debian:bookworm-slim` runtime — `rust:slim` moved to trixie (glibc 2.39) causing a glibc mismatch at startup
+
 ## 0.1.3 (2026-05-24)
 
 ### Fixed
