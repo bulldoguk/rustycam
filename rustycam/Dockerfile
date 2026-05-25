@@ -10,7 +10,7 @@ COPY migrations ./migrations
 RUN cargo build --release
 
 # ---- runtime ----
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 RUN apt-get update \
     && apt-get install -y ffmpeg ca-certificates jq \

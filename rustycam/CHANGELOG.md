@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5 (2026-05-24)
+
+### Fixed
+- Upgrade runtime to `debian:trixie-slim` (glibc 2.39) to match what `rust:bookworm` builder actually links against
+
 ## 0.1.4 (2026-05-24)
 
 ### Fixed
