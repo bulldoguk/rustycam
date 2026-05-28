@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.15 (2026-05-28)
+
+### Fixed
+- Orphaned XMP sidecars with no corresponding MP4: ffmpeg with `-fflags +discardcorrupt` can exit 0 but produce an empty or header-only container when ring buffer packets are corrupt. Rustycam now checks the output file size after extraction and discards clips smaller than 1 KB, preventing the XMP sidecar from being written for invalid clips
+- Partial output files left on disk when clip extraction fails are now deleted before the error is returned
+
 ## 0.1.14 (2026-05-28)
 
 ### Added

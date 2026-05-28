@@ -68,10 +68,24 @@ pub async fn capture_event(
     // Extract clip from ring buffer segments
     let clip = storage::clip_path(&cfg.base_path, &cam.id, &event_id, &timestamp);
     tokio::fs::create_dir_all(clip.parent().unwrap()).await?;
-    extract_clip(cam, cfg, &clip).await?;
+    match extract_clip(cam, cfg, &clip).await {
+        Ok(()) => {}
+        Err(e) => {
+            // Clean up any partial output file ffmpeg may have created before failing
+            let _ = tokio::fs::remove_file(&clip).await;
+            return Err(e);
+        }
+    }
+    // Guard against ffmpeg exiting 0 but producing an empty/header-only container
+    // (can happen with -fflags +discardcorrupt when all ring buffer packets are bad)
+    let clip_size = tokio::fs::metadata(&clip).await.map(|m| m.len()).unwrap_or(0);
+    if clip_size < 1024 {
+        let _ = tokio::fs::remove_file(&clip).await;
+        bail!("ffmpeg produced a near-empty clip ({} bytes) for camera {} — discarding", clip_size, cam.id);
+    }
     tag_file(cam, &clip, topics, timestamp).await;
     write_xmp_sidecar(cam, &clip, topics, timestamp).await;
-    info!("Clip saved: {}", clip.display());
+    info!("Clip saved: {} ({} bytes)", clip.display(), clip_size);
 
     storage::insert_event(db, &event_id, cam, &timestamp, &snapshot, &clip).await?;
 
