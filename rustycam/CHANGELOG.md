@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.14 (2026-05-28)
+
+### Added
+- Optional `zone` field per camera in config; written as `zone/<value>` tag in EXIF and XMP
+
+### Changed
+- Tags now use namespaced hierarchy: `camera/`, `event/`, `zone/`, `site/home`, `source/reolink` (replaces bare `rustycam` tag)
+- ONVIF event labels normalised: `PeopleDetect` → `person`, `DogCatDetect` → `animal`, `VehicleDetect` → `vehicle`
+
+### Fixed
+- Immich timezone issue: `DateTimeOriginal` now written with local time + UTC offset so clips and snapshots appear on the correct calendar day (was rolling over at 7pm CDT)
+
 ## 0.1.13 (2026-05-25)
 
 ### Changed
