@@ -83,7 +83,8 @@ pub async fn capture_event(
         let _ = tokio::fs::remove_file(&clip).await;
         bail!("ffmpeg produced a near-empty clip ({} bytes) for camera {} — discarding", clip_size, cam.id);
     }
-    tag_file(cam, &clip, topics, timestamp).await;
+    // Clips use XMP sidecar only — writing EXIF directly into an MP4 with
+    // -overwrite_original can delete or truncate the file if exiftool fails
     write_xmp_sidecar(cam, &clip, topics, timestamp).await;
     info!("Clip saved: {} ({} bytes)", clip.display(), clip_size);
 
@@ -113,9 +114,14 @@ async fn write_xmp_sidecar(cam: &CameraConfig, path: &PathBuf, topics: &[String]
 
     let sidecar = PathBuf::from(format!("{}.xmp", path.to_string_lossy()));
 
+    let description = format!("{} — {}", cam.name, labels.join(", "));
+
     // First tag sets the value, subsequent tags append with +=
     let mut args: Vec<String> = vec![
         format!("-XMP-exif:DateTimeOriginal={}", xmp_dt),
+        format!("-XMP-tiff:Make=Reolink"),
+        format!("-XMP-tiff:Model={}", cam.id),
+        format!("-XMP-dc:Description={}", description),
         format!("-XMP-digiKam:TagsList=camera/{}", cam.id),
     ];
     for label in &labels {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.17 (2026-05-28)
+
+### Fixed
+- Clips were being deleted or truncated by exiftool: `tag_file` used `-overwrite_original` on the MP4, which works by writing a temp file and swapping it in — when exiftool failed partway through, it deleted or corrupted the source clip. Clips now use the XMP sidecar exclusively for metadata; `tag_file` (EXIF in-place edit) is only called on JPG snapshots where it is safe and standard
+- Make, Model, and Description fields moved into the XMP sidecar for clips so no metadata is lost
+
 ## 0.1.16 (2026-05-28)
 
 ### Fixed
