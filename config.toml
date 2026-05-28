@@ -14,20 +14,22 @@ post_event_seconds = 15
 path = "/data/rustycam.db"
 
 [[cameras]]
-id = "cam_01"
+id = "front_door"
 name = "Front Door"
 ip = "192.168.1.101"
 username = "admin"
 password = "changeme"
 rtsp_stream = "sub"   # sub uses less CPU; use "main" for full res
+zone = "front_porch"
 
 [[cameras]]
-id = "cam_02"
-name = "Backyard"
+id = "backyard_east_duo3"
+name = "Backyard East"
 ip = "192.168.1.102"
 username = "admin"
 password = "changeme"
 rtsp_stream = "sub"
+zone = "backyard"
 
 [[cameras]]
 id = "cam_front_door_west"

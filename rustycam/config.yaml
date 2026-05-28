@@ -35,3 +35,4 @@ schema:
       username: str
       password: password
       rtsp_stream: list(sub|main)
+      zone: str?

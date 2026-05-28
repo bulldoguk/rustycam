@@ -40,6 +40,8 @@ pub struct CameraConfig {
     pub username: String,
     pub password: String,
     pub rtsp_stream: String,
+    #[serde(default)]
+    pub zone: Option<String>,
 }
 
 impl CameraConfig {

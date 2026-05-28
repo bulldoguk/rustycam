@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use sqlx::SqlitePool;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -59,7 +59,7 @@ pub async fn capture_event(
     let snapshot = storage::snapshot_path(&cfg.base_path, &cam.id, &event_id, &timestamp);
     tokio::fs::create_dir_all(snapshot.parent().unwrap()).await?;
     frame_from_rtsp(cam, &snapshot).await?;
-    tag_file(cam, &snapshot, topics).await;
+    tag_file(cam, &snapshot, topics, timestamp).await;
     info!("Snapshot saved: {}", snapshot.display());
 
     // Wait for post-event footage to accumulate in the ring buffer
@@ -69,8 +69,8 @@ pub async fn capture_event(
     let clip = storage::clip_path(&cfg.base_path, &cam.id, &event_id, &timestamp);
     tokio::fs::create_dir_all(clip.parent().unwrap()).await?;
     extract_clip(cam, cfg, &clip).await?;
-    tag_file(cam, &clip, topics).await;
-    write_xmp_sidecar(cam, &clip, topics).await;
+    tag_file(cam, &clip, topics, timestamp).await;
+    write_xmp_sidecar(cam, &clip, topics, timestamp).await;
     info!("Clip saved: {}", clip.display());
 
     storage::insert_event(db, &event_id, cam, &timestamp, &snapshot, &clip).await?;
@@ -78,22 +78,40 @@ pub async fn capture_event(
     Ok(())
 }
 
-async fn write_xmp_sidecar(cam: &CameraConfig, path: &PathBuf, topics: &[String]) {
-    let labels: Vec<String> = topics
+fn normalize_event_label(raw: &str) -> &str {
+    match raw {
+        "PeopleDetect" => "person",
+        "DogCatDetect" => "animal",
+        "VehicleDetect" => "vehicle",
+        other => other,
+    }
+}
+
+async fn write_xmp_sidecar(cam: &CameraConfig, path: &PathBuf, topics: &[String], timestamp: DateTime<Utc>) {
+    let labels: Vec<&str> = topics
         .iter()
-        .map(|t| t.rsplit('/').next().unwrap_or(t.as_str()).to_string())
+        .map(|t| normalize_event_label(t.rsplit('/').next().unwrap_or(t.as_str())))
         .collect();
+
+    let local = timestamp.with_timezone(&Local);
+    // ISO 8601 with offset, e.g. "2026-05-27T22:19:11-05:00"
+    let xmp_dt = local.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
 
     let sidecar = PathBuf::from(format!("{}.xmp", path.to_string_lossy()));
 
     // First tag sets the value, subsequent tags append with +=
     let mut args: Vec<String> = vec![
+        format!("-XMP-exif:DateTimeOriginal={}", xmp_dt),
         format!("-XMP-digiKam:TagsList=camera/{}", cam.id),
     ];
     for label in &labels {
         args.push(format!("-XMP-digiKam:TagsList+=event/{}", label));
     }
-    args.push("-XMP-digiKam:TagsList+=rustycam".into());
+    if let Some(zone) = &cam.zone {
+        args.push(format!("-XMP-digiKam:TagsList+=zone/{}", zone));
+    }
+    args.push("-XMP-digiKam:TagsList+=site/home".into());
+    args.push("-XMP-digiKam:TagsList+=source/reolink".into());
     args.push("-o".into());
     args.push(sidecar.to_string_lossy().into_owned());
     args.push(path.to_string_lossy().into_owned());
@@ -112,31 +130,44 @@ async fn write_xmp_sidecar(cam: &CameraConfig, path: &PathBuf, topics: &[String]
     }
 }
 
-async fn tag_file(cam: &CameraConfig, path: &PathBuf, topics: &[String]) {
+async fn tag_file(cam: &CameraConfig, path: &PathBuf, topics: &[String], timestamp: DateTime<Utc>) {
     // Extract the last path segment of each ONVIF topic as a human-readable label
     // e.g. "tns1:RuleEngine/MyRuleDetector/PeopleDetect" → "PeopleDetect"
-    let labels: Vec<String> = topics
+    let labels: Vec<&str> = topics
         .iter()
-        .map(|t| t.rsplit('/').next().unwrap_or(t.as_str()).to_string())
+        .map(|t| normalize_event_label(t.rsplit('/').next().unwrap_or(t.as_str())))
         .collect();
 
     let description = format!("{} — {}", cam.name, labels.join(", "));
+
+    let local = timestamp.with_timezone(&Local);
+    // EXIF DateTimeOriginal uses "YYYY:MM:DD HH:MM:SS" format; offset is separate
+    let exif_dt = local.format("%Y:%m:%d %H:%M:%S").to_string();
+    let exif_offset = local.format("%:z").to_string();
 
     let mut args: Vec<String> = vec![
         format!("-Make=Reolink"),
         format!("-Model={}", cam.id),
         format!("-ImageDescription={}", description),
         format!("-Comment={}", description),
+        format!("-DateTimeOriginal={}", exif_dt),
+        format!("-OffsetTimeOriginal={}", exif_offset),
         "-overwrite_original".into(),
     ];
     for label in &labels {
-        args.push(format!("-Keywords+={}", label));
-        args.push(format!("-Subject+={}", label));
+        args.push(format!("-Keywords+=event/{}", label));
+        args.push(format!("-Subject+=event/{}", label));
     }
-    args.push(format!("-Keywords+={}", cam.id));
-    args.push(format!("-Subject+={}", cam.id));
-    args.push(format!("-Keywords+=rustycam"));
-    args.push(format!("-Subject+=rustycam"));
+    args.push(format!("-Keywords+=camera/{}", cam.id));
+    args.push(format!("-Subject+=camera/{}", cam.id));
+    if let Some(zone) = &cam.zone {
+        args.push(format!("-Keywords+=zone/{}", zone));
+        args.push(format!("-Subject+=zone/{}", zone));
+    }
+    args.push("-Keywords+=site/home".into());
+    args.push("-Subject+=site/home".into());
+    args.push("-Keywords+=source/reolink".into());
+    args.push("-Subject+=source/reolink".into());
     args.push(path.to_string_lossy().into_owned());
 
     let result = Command::new("exiftool")
