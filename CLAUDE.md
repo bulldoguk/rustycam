@@ -14,7 +14,7 @@ If changes were already committed without bumping the version, do a follow-up co
 - `rustycam/src/` — Rust source (main binary)
 - `rustycam/config.yaml` — Home Assistant add-on manifest (contains version)
 - `config.toml` / `config.dev.toml` — example runtime configs
-- `CHANGELOG.md` — human-readable release notes
+- `rustycam/CHANGELOG.md` — human-readable release notes
 
 ## Key source files
 
