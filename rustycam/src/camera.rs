@@ -36,7 +36,7 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
 
     // Wait for the ring buffer to accumulate pre_event_seconds of footage
     // before accepting triggers, so clips always have full pre-event context.
-    let warmup_until = Instant::now() + Duration::from_secs(storage_cfg.pre_event_seconds);
+    let mut warmup_until = Instant::now() + Duration::from_secs(storage_cfg.pre_event_seconds);
 
     let mut last_event: Option<Instant> = None;
     let mut last_renew = Instant::now();
@@ -63,7 +63,11 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
             Ok(Some(_)) => {
                 warn!("[{}] Ring buffer process exited, restarting", config.id);
                 match capture::start_ring_buffer(&config, &storage_cfg).await {
-                    Ok(r) => ring = r,
+                    Ok(r) => {
+                        ring = r;
+                        // Reset warmup — new ring buffer has no pre-event footage yet
+                        warmup_until = Instant::now() + Duration::from_secs(storage_cfg.pre_event_seconds);
+                    }
                     Err(e) => {
                         warn!("[{}] Failed to restart ring buffer: {e}", config.id);
                         tokio::time::sleep(Duration::from_secs(5)).await;
