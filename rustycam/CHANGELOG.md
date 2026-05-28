@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.16 (2026-05-28)
+
+### Fixed
+- Concurrent captures (events firing >5s apart within the same post-event window) shared a single `concat.txt` manifest file — each capture now writes its own `concat_<uuid>.txt`, preventing races where one capture's ffmpeg reads another event's segment list and produces an empty or wrong clip
+- Ring buffer warmup guard was not reset when ffmpeg died and restarted mid-session — events could trigger immediately after a restart before the ring buffer had accumulated any pre-event footage, producing clips with no pre-event content
+
 ## 0.1.15 (2026-05-28)
 
 ### Fixed

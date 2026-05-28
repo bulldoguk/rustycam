@@ -68,7 +68,7 @@ pub async fn capture_event(
     // Extract clip from ring buffer segments
     let clip = storage::clip_path(&cfg.base_path, &cam.id, &event_id, &timestamp);
     tokio::fs::create_dir_all(clip.parent().unwrap()).await?;
-    match extract_clip(cam, cfg, &clip).await {
+    match extract_clip(cam, cfg, &clip, &event_id).await {
         Ok(()) => {}
         Err(e) => {
             // Clean up any partial output file ffmpeg may have created before failing
@@ -224,7 +224,7 @@ async fn frame_from_rtsp(cam: &CameraConfig, dest: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-async fn extract_clip(cam: &CameraConfig, cfg: &StorageConfig, output: &PathBuf) -> Result<()> {
+async fn extract_clip(cam: &CameraConfig, cfg: &StorageConfig, output: &PathBuf, event_id: &str) -> Result<()> {
     let buf_dir = PathBuf::from(&cfg.ring_buffer_dir).join(&cam.id);
 
     // Collect segments sorted by mtime — ring buffer wraps numerically so
@@ -260,8 +260,9 @@ async fn extract_clip(cam: &CameraConfig, cfg: &StorageConfig, output: &PathBuf)
         segments.drain(0..segments.len() - max_segs);
     }
 
-    // Write ffmpeg concat manifest
-    let concat_path = buf_dir.join("concat.txt");
+    // Write ffmpeg concat manifest — use event_id to avoid concurrent captures
+    // overwriting each other's manifest (captures are spawned as background tasks)
+    let concat_path = buf_dir.join(format!("concat_{}.txt", event_id));
     let manifest: String = segments
         .iter()
         .map(|p| format!("file '{}'\n", p.display()))
@@ -288,6 +289,8 @@ async fn extract_clip(cam: &CameraConfig, cfg: &StorageConfig, output: &PathBuf)
         ])
         .status()
         .await?;
+
+    let _ = tokio::fs::remove_file(&concat_path).await;
 
     if !status.success() {
         bail!("ffmpeg clip extraction failed for camera {}", cam.id);
