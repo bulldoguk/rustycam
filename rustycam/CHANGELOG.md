@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.19 (2026-06-16)
+
+### Changed
+- Version bump to test pre-built image pull from ghcr.io (no code changes)
+
 ## 0.1.18 (2026-06-16)
 
 ### Changed
