@@ -3,6 +3,7 @@ version: "0.1.18"
 slug: rustycam
 description: RTSP camera capture and NVR — stores footage to your NAS
 url: https://github.com/bulldoguk/rustycam
+image: ghcr.io/bulldoguk/rustycam
 arch:
   - aarch64
   - amd64
