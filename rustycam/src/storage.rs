@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use sqlx::SqlitePool;
 use std::path::PathBuf;
 use tracing::info;
@@ -20,20 +20,28 @@ pub async fn init_db(cfg: &DatabaseConfig) -> Result<SqlitePool> {
     Ok(pool)
 }
 
-pub fn snapshot_path(base: &str, camera_id: &str, event_id: &str, ts: &DateTime<Utc>) -> PathBuf {
+// Matches the HA automation convention:
+// {base}/{camera_id}/{detection_type}/{YYYY}/{MM}/{DD}/{camera_id}_{detection_type}_{YYYY-MM-DD_HH-MM-SS}.jpg
+pub fn snapshot_path(base: &str, camera_id: &str, detection_type: &str, ts: &DateTime<Utc>) -> PathBuf {
+    let local = ts.with_timezone(&Local);
     PathBuf::from(base)
-        .join("snapshots")
-        .join(ts.format("%Y-%m-%d").to_string())
         .join(camera_id)
-        .join(format!("{event_id}.jpg"))
+        .join(detection_type)
+        .join(local.format("%Y").to_string())
+        .join(local.format("%m").to_string())
+        .join(local.format("%d").to_string())
+        .join(format!("{camera_id}_{detection_type}_{}.jpg", local.format("%Y-%m-%d_%H-%M-%S")))
 }
 
-pub fn clip_path(base: &str, camera_id: &str, event_id: &str, ts: &DateTime<Utc>) -> PathBuf {
+pub fn clip_path(base: &str, camera_id: &str, detection_type: &str, ts: &DateTime<Utc>) -> PathBuf {
+    let local = ts.with_timezone(&Local);
     PathBuf::from(base)
-        .join("clips")
-        .join(ts.format("%Y-%m-%d").to_string())
         .join(camera_id)
-        .join(format!("{event_id}.mp4"))
+        .join(detection_type)
+        .join(local.format("%Y").to_string())
+        .join(local.format("%m").to_string())
+        .join(local.format("%d").to_string())
+        .join(format!("{camera_id}_{detection_type}_{}.mp4", local.format("%Y-%m-%d_%H-%M-%S")))
 }
 
 pub async fn insert_event(

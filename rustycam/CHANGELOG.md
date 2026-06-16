@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.18 (2026-06-16)
+
+### Changed
+- File paths now match the HA automation convention: `{camera_id}/{detection_type}/{YYYY}/{MM}/{DD}/{camera_id}_{detection_type}_{YYYY-MM-DD_HH-MM-SS}.jpg/.mp4`
+- Timestamps in filenames use local time (via `chrono::Local`) instead of UTC, consistent with how HA automations call `now().strftime()`
+- Detection type is derived from the first ONVIF topic on each event (same normalisation: `PeopleDetect`→`person`, `DogCatDetect`→`animal`, `VehicleDetect`→`vehicle`), falling back to `motion` if no topic is present
+
 ## 0.1.17 (2026-05-28)
 
 ### Fixed

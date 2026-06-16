@@ -54,9 +54,15 @@ pub async fn capture_event(
 ) -> Result<()> {
     let event_id = Uuid::new_v4().to_string();
 
+    let detection_type = topics
+        .iter()
+        .map(|t| normalize_event_label(t.rsplit('/').next().unwrap_or(t.as_str())))
+        .next()
+        .unwrap_or("motion");
+
     // Snapshot: grab a frame directly from the RTSP stream at trigger time.
     // Faster than the camera's HTTP snapshot API and captures the exact moment.
-    let snapshot = storage::snapshot_path(&cfg.base_path, &cam.id, &event_id, &timestamp);
+    let snapshot = storage::snapshot_path(&cfg.base_path, &cam.id, detection_type, &timestamp);
     tokio::fs::create_dir_all(snapshot.parent().unwrap()).await?;
     frame_from_rtsp(cam, &snapshot).await?;
     tag_file(cam, &snapshot, topics, timestamp).await;
@@ -66,7 +72,7 @@ pub async fn capture_event(
     tokio::time::sleep(tokio::time::Duration::from_secs(cfg.post_event_seconds)).await;
 
     // Extract clip from ring buffer segments
-    let clip = storage::clip_path(&cfg.base_path, &cam.id, &event_id, &timestamp);
+    let clip = storage::clip_path(&cfg.base_path, &cam.id, detection_type, &timestamp);
     tokio::fs::create_dir_all(clip.parent().unwrap()).await?;
     match extract_clip(cam, cfg, &clip, &event_id).await {
         Ok(()) => {}
