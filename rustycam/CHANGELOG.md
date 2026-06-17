@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.20 (2026-06-16)
+
+### Fixed
+- Runtime image (`alpine:3.21`) had no `tzdata` package and no `TZ` env var, so `chrono::Local` silently fell back to UTC inside the container. Captures after ~7pm CDT were being filed under tomorrow's date folder and tagged with a `DateTimeOriginal` a day ahead, causing them to go missing from Immich's timeline. Added `tzdata` to the runtime image and set `ENV TZ=America/Chicago` so local-time resolution actually works.
+
 ## 0.1.19 (2026-06-16)
 
 ### Changed

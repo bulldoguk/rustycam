@@ -12,7 +12,7 @@ RUN cargo build --release
 # ---- runtime ----
 FROM alpine:3.21
 
-RUN apk add --no-cache ffmpeg ca-certificates jq bash exiftool
+RUN apk add --no-cache ffmpeg ca-certificates jq bash exiftool tzdata
 
 WORKDIR /app
 COPY --from=builder /app/target/release/rustycam /app/rustycam
@@ -24,5 +24,6 @@ VOLUME ["/data"]
 EXPOSE 8090
 
 ENV RUST_LOG=rustycam=info
+ENV TZ=America/Chicago
 
 CMD ["/app/run.sh"]
