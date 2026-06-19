@@ -108,6 +108,23 @@ fn normalize_event_label(raw: &str) -> &str {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_known_labels() {
+        assert_eq!(normalize_event_label("PeopleDetect"), "person");
+        assert_eq!(normalize_event_label("DogCatDetect"), "animal");
+        assert_eq!(normalize_event_label("VehicleDetect"), "vehicle");
+    }
+
+    #[test]
+    fn passes_through_unknown_labels() {
+        assert_eq!(normalize_event_label("FieldDetector"), "FieldDetector");
+    }
+}
+
 async fn write_xmp_sidecar(cam: &CameraConfig, path: &PathBuf, topics: &[String], timestamp: DateTime<Utc>) {
     let labels: Vec<&str> = topics
         .iter()

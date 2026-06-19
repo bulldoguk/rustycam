@@ -78,5 +78,113 @@ impl CameraConfig {
 
 pub fn load(path: &str) -> Result<Config> {
     let text = fs::read_to_string(path).with_context(|| format!("Cannot read config: {path}"))?;
-    toml::from_str(&text).context("Failed to parse config.toml")
+    parse(&text)
+}
+
+pub fn parse(text: &str) -> Result<Config> {
+    toml::from_str(text).context("Failed to parse config.toml")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE: &str = r#"
+[server]
+port = 8090
+bind = "0.0.0.0"
+
+[storage]
+base_path = "/data"
+ring_buffer_dir = "/tmp/ring"
+ring_segment_seconds = 5
+ring_segments_kept = 12
+pre_event_seconds = 15
+post_event_seconds = 15
+
+[database]
+path = "/data/rustycam.db"
+
+[[cameras]]
+id = "front_east"
+name = "Front East"
+ip = "192.168.20.20"
+username = "admin"
+password = "secret"
+rtsp_stream = "main"
+excluded_topics = ["VehicleDetect"]
+"#;
+
+    #[test]
+    fn parses_camera_with_excluded_topics() {
+        let config = parse(SAMPLE).unwrap();
+        assert_eq!(config.cameras.len(), 1);
+        let cam = &config.cameras[0];
+        assert_eq!(cam.id, "front_east");
+        assert_eq!(cam.excluded_topics, vec!["VehicleDetect".to_string()]);
+    }
+
+    #[test]
+    fn excluded_topics_defaults_to_empty() {
+        let text = SAMPLE.replace("excluded_topics = [\"VehicleDetect\"]\n", "");
+        let config = parse(&text).unwrap();
+        assert!(config.cameras[0].excluded_topics.is_empty());
+    }
+
+    #[test]
+    fn idle_debounce_and_max_session_default_when_omitted() {
+        let config = parse(SAMPLE).unwrap();
+        assert_eq!(config.storage.idle_debounce_seconds, 30);
+        assert_eq!(config.storage.max_session_seconds, 60);
+    }
+
+    #[test]
+    fn rtsp_url_uses_sub_stream_path() {
+        let cam = CameraConfig {
+            id: "front_east".into(),
+            name: "Front East".into(),
+            ip: "192.168.20.20".into(),
+            username: "admin".into(),
+            password: "secret".into(),
+            rtsp_stream: "sub".into(),
+            zone: None,
+            excluded_topics: vec![],
+        };
+        assert_eq!(
+            cam.rtsp_url(),
+            "rtsp://admin:secret@192.168.20.20/h264Preview_01_sub"
+        );
+    }
+
+    #[test]
+    fn rtsp_url_defaults_to_main_stream_for_unknown_value() {
+        let mut cam_main = CameraConfig {
+            id: "front_east".into(),
+            name: "Front East".into(),
+            ip: "192.168.20.20".into(),
+            username: "admin".into(),
+            password: "secret".into(),
+            rtsp_stream: "main".into(),
+            zone: None,
+            excluded_topics: vec![],
+        };
+        let main_url = cam_main.rtsp_url();
+        cam_main.rtsp_stream = "bogus".into();
+        assert_eq!(cam_main.rtsp_url(), main_url);
+    }
+
+    #[test]
+    fn onvif_event_url_format() {
+        let cam = CameraConfig {
+            id: "front_east".into(),
+            name: "Front East".into(),
+            ip: "192.168.20.20".into(),
+            username: "admin".into(),
+            password: "secret".into(),
+            rtsp_stream: "main".into(),
+            zone: None,
+            excluded_topics: vec![],
+        };
+        assert_eq!(cam.onvif_event_url(), "http://192.168.20.20/onvif/event_service");
+    }
 }
