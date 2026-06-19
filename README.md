@@ -1,5 +1,7 @@
 # RustyCam NVR
 
+[![Build and push Docker image](https://github.com/bulldoguk/rustycam/actions/workflows/build.yml/badge.svg)](https://github.com/bulldoguk/rustycam/actions/workflows/build.yml)
+
 A lightweight NVR (Network Video Recorder) for ONVIF cameras, built in Rust. Designed to run as a Home Assistant add-on with footage stored on a NAS.
 
 ## How it works

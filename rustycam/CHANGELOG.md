@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.24 (2026-06-19)
+
+### Added
+- First unit tests: capture-trigger decision logic (`camera.rs`, extracted into a pure `is_triggered()` function), ONVIF XML event parsing (`onvif.rs`), event-label normalization (`capture.rs`), and config TOML parsing + camera URL helpers (`config.rs`). 20 tests total, runnable locally with `cargo test`.
+- CI now runs `cargo test --release` in a `test` job that the Docker `build` job depends on (`needs: test`), so a broken test blocks the image push. No code/runtime behavior change.
+
 ## 0.1.23 (2026-06-19)
 
 ### Fixed

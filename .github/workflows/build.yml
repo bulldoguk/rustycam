@@ -7,7 +7,25 @@ on:
       - 'rustycam/**'
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rustycam
+
+      - name: Run tests
+        working-directory: rustycam
+        run: cargo test --release
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read

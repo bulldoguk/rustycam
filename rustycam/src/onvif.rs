@@ -275,3 +275,66 @@ fn attr_value(e: &quick_xml::events::BytesStart, key: &[u8]) -> Option<String> {
         .and_then(|a| a.unescape_value().ok())
         .map(|v| v.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pull_messages_response(topic: &str, value: &str) -> String {
+        format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2"
+            xmlns:tt="http://www.onvif.org/ver10/schema">
+  <s:Body>
+    <wsnt:NotificationMessage>
+      <wsnt:Topic>{topic}</wsnt:Topic>
+      <wsnt:Message>
+        <tt:Message>
+          <tt:Data>
+            <tt:SimpleItem Name="State" Value="{value}"/>
+          </tt:Data>
+        </tt:Message>
+      </wsnt:Message>
+    </wsnt:NotificationMessage>
+  </s:Body>
+</s:Envelope>"#
+        )
+    }
+
+    #[test]
+    fn parses_active_trigger_topic() {
+        let xml = pull_messages_response("tns1:RuleEngine/MyRuleDetector/PeopleDetect", "true");
+        let events = parse_events(&xml, "front_door").unwrap();
+        assert_eq!(events.len(), 1);
+        assert!(events[0].is_active);
+        assert_eq!(events[0].topic, "tns1:RuleEngine/MyRuleDetector/PeopleDetect");
+    }
+
+    #[test]
+    fn parses_inactive_trigger_topic() {
+        let xml = pull_messages_response("tns1:RuleEngine/MyRuleDetector/PeopleDetect", "false");
+        let events = parse_events(&xml, "front_door").unwrap();
+        assert_eq!(events.len(), 1);
+        assert!(!events[0].is_active);
+    }
+
+    #[test]
+    fn ignores_unknown_topic() {
+        let xml = pull_messages_response("tns1:RuleEngine/CellMotionDetector/Motion", "true");
+        let events = parse_events(&xml, "front_door").unwrap();
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn extract_text_finds_address() {
+        let xml = r#"<root><Address>http://192.168.1.1/sub</Address></root>"#;
+        assert_eq!(extract_text(xml, "Address"), Some("http://192.168.1.1/sub".to_string()));
+    }
+
+    #[test]
+    fn extract_text_missing_tag_returns_none() {
+        let xml = r#"<root><Other>value</Other></root>"#;
+        assert_eq!(extract_text(xml, "Address"), None);
+    }
+}

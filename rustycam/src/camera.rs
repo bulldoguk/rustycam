@@ -6,7 +6,7 @@ use tracing::{info, warn};
 
 use crate::capture;
 use crate::config::{CameraConfig, StorageConfig};
-use crate::onvif;
+use crate::onvif::{self, OnvifEvent};
 
 const RENEW_INTERVAL_SECS: u64 = 1800; // 30 min
 const PULL_TIMEOUT_SECS: u32 = 5;      // long-poll window
@@ -23,6 +23,20 @@ const AI_TOPICS: &[&str] = &[
     "ObjectsInside",
     "MyRuleDetector",
 ];
+
+/// Decide whether a batch of ONVIF events should trigger a capture.
+///
+/// An event triggers a capture when it's active, matches one of the
+/// AI_TOPICS, and its final topic segment isn't in `excluded_topics` (the
+/// per-camera override used to silence a noisy detection type on one camera
+/// without affecting others that share the same AI_TOPICS entry).
+fn is_triggered(events: &[OnvifEvent], excluded_topics: &[String]) -> bool {
+    events.iter().any(|e| {
+        e.is_active
+            && AI_TOPICS.iter().any(|t| e.topic.contains(t))
+            && !excluded_topics.iter().any(|t| e.topic.ends_with(t.as_str()))
+    })
+}
 
 pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePool) -> Result<()> {
     info!("[{}] Camera task starting ({})", config.id, config.ip);
@@ -100,16 +114,7 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
             }
         };
 
-        // Only act on active AI-classification events; raw MotionAlarm is excluded.
-        // Per-camera excluded_topics matches against the topic's final segment
-        // (e.g. "VehicleDetect"), so a noisy detector can be silenced on one
-        // camera without affecting others that rely on the same AI_TOPICS entry.
-        let triggered = events.iter().any(|e| {
-            e.is_active
-                && AI_TOPICS.iter().any(|t| e.topic.contains(t))
-                && !config.excluded_topics.iter().any(|t| e.topic.ends_with(t.as_str()))
-        });
-        if !triggered {
+        if !is_triggered(&events, &config.excluded_topics) {
             continue;
         }
 
@@ -154,5 +159,68 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
                 tracing::error!("[{}] Capture error: {e:#}", config.id);
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(topic: &str, is_active: bool) -> OnvifEvent {
+        OnvifEvent {
+            topic: topic.to_string(),
+            is_active,
+        }
+    }
+
+    #[test]
+    fn person_detection_triggers() {
+        let events = vec![event("tns1:RuleEngine/MyRuleDetector/PeopleDetect", true)];
+        assert!(is_triggered(&events, &[]));
+    }
+
+    #[test]
+    fn inactive_event_does_not_trigger() {
+        let events = vec![event("tns1:RuleEngine/MyRuleDetector/PeopleDetect", false)];
+        assert!(!is_triggered(&events, &[]));
+    }
+
+    #[test]
+    fn raw_motion_does_not_trigger() {
+        let events = vec![event("tns1:RuleEngine/CellMotionDetector/Motion", true)];
+        assert!(!is_triggered(&events, &[]));
+    }
+
+    #[test]
+    fn vehicle_detect_triggers_by_default() {
+        // MyRuleDetector is in AI_TOPICS, so a custom Reolink rule reporting
+        // VehicleDetect still triggers unless explicitly excluded.
+        let events = vec![event("tns1:RuleEngine/MyRuleDetector/VehicleDetect", true)];
+        assert!(is_triggered(&events, &[]));
+    }
+
+    #[test]
+    fn excluded_topic_suppresses_matching_event() {
+        let events = vec![event("tns1:RuleEngine/MyRuleDetector/VehicleDetect", true)];
+        let excluded = vec!["VehicleDetect".to_string()];
+        assert!(!is_triggered(&events, &excluded));
+    }
+
+    #[test]
+    fn excluded_topic_does_not_suppress_other_events() {
+        // excluded_topics on one camera must not silence unrelated detection
+        // types reported through the same MyRuleDetector ONVIF rule.
+        let events = vec![event("tns1:RuleEngine/MyRuleDetector/PeopleDetect", true)];
+        let excluded = vec!["VehicleDetect".to_string()];
+        assert!(is_triggered(&events, &excluded));
+    }
+
+    #[test]
+    fn mixed_batch_triggers_if_any_event_qualifies() {
+        let events = vec![
+            event("tns1:RuleEngine/CellMotionDetector/Motion", true),
+            event("tns1:RuleEngine/MyRuleDetector/PeopleDetect", true),
+        ];
+        assert!(is_triggered(&events, &[]));
     }
 }
