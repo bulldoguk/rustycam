@@ -73,6 +73,16 @@ Timestamps use local time (`chrono::Local`). Detection type is the first normali
 
 Set `storage_path` to `/media/ha_media/reolink` to share the same directory tree as the HA snapshot automations.
 
+## Cleanup job
+
+`/config/shell_scripts/cleanup_reolink_snapshots.sh` runs nightly at 03:15 (automation in
+`/config/automations/cameras/snapshots.yaml` → `shell_command.cleanup_reolink_snapshots`).
+Deletes files under `ROOT_DIR` (default `/media/ha_media/reolink`) older than `RETENTION_DAYS`
+(default 7), and also deletes the matching Immich asset via the Immich API when one exists.
+Must match `*.mp4.xmp` sidecars alongside `*.jpg`/`*.jpeg`/`*.mp4` in its `find`, or sidecars
+orphan forever once their parent file is deleted — this bit us once (see CHANGELOG-style note
+in commit history around 2026-06-19, found via a bloated Immich library crawl).
+
 ## Timezone / Immich
 
 Clips and snapshots must have `DateTimeOriginal` set to **local time with UTC offset** so Immich places them on the correct calendar day. `chrono::Local` is used at runtime — no hardcoded timezone. See `tag_file` and `write_xmp_sidecar` in `capture.rs`.
