@@ -1,5 +1,5 @@
 name: RustyCam NVR
-version: "0.1.22"
+version: "0.1.23"
 slug: rustycam
 description: RTSP camera capture and NVR — stores footage to your NAS
 url: https://github.com/bulldoguk/rustycam
@@ -41,4 +41,4 @@ schema:
       password: password
       rtsp_stream: list(sub|main)
       zone: str?
-      excluded_topics: list(str)?
+      excluded_topics: str?

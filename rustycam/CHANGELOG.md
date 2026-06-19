@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.23 (2026-06-19)
+
+### Fixed
+- `excluded_topics` add-on option: `list(str)?` is not a valid HA add-on schema type — `list(a|b)` syntax actually means "select with literal options a/b", so it required the value to literally be the string `"str"`. Changed to a plain comma-separated `str?` option, translated to a TOML array in `run.sh`.
+
 ## 0.1.22 (2026-06-19)
 
 ### Added

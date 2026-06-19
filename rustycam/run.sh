@@ -39,6 +39,7 @@ TOML
     username=$(printf '%s' "$cam" | jq -r '.username')
     password=$(printf '%s' "$cam" | jq -r '.password')
     rtsp_stream=$(printf '%s' "$cam" | jq -r '.rtsp_stream')
+    excluded_topics_raw=$(printf '%s' "$cam" | jq -r '.excluded_topics // ""')
 
     cat <<TOML
 [[cameras]]
@@ -48,8 +49,14 @@ ip = "$ip"
 username = "$username"
 password = "$password"
 rtsp_stream = "$rtsp_stream"
-
 TOML
+
+    if [ -n "$excluded_topics_raw" ]; then
+      # Comma-separated string option -> TOML array, e.g. "VehicleDetect, Foo" -> ["VehicleDetect", "Foo"]
+      excluded_topics_toml=$(printf '%s' "$excluded_topics_raw" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | jq -R . | jq -s -c .)
+      echo "excluded_topics = $excluded_topics_toml"
+    fi
+    echo ""
   done
 } > /data/config.toml
 
