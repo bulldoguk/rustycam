@@ -25,6 +25,18 @@ pub struct StorageConfig {
     pub ring_segments_kept: u32,
     pub pre_event_seconds: u64,
     pub post_event_seconds: u64,
+    #[serde(default = "default_idle_debounce_seconds")]
+    pub idle_debounce_seconds: u64,
+    #[serde(default = "default_max_session_seconds")]
+    pub max_session_seconds: u64,
+}
+
+fn default_idle_debounce_seconds() -> u64 {
+    30
+}
+
+fn default_max_session_seconds() -> u64 {
+    60
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -42,6 +54,8 @@ pub struct CameraConfig {
     pub rtsp_stream: String,
     #[serde(default)]
     pub zone: Option<String>,
+    #[serde(default)]
+    pub excluded_topics: Vec<String>,
 }
 
 impl CameraConfig {

@@ -9,6 +9,8 @@ ring_segment_seconds = 5
 ring_segments_kept = 12   # 60s ring buffer
 pre_event_seconds = 30
 post_event_seconds = 15
+idle_debounce_seconds = 30
+max_session_seconds = 60
 
 [database]
 path = "/data/rustycam.db"
