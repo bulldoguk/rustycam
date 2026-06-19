@@ -76,3 +76,33 @@ Set `storage_path` to `/media/ha_media/reolink` to share the same directory tree
 ## Timezone / Immich
 
 Clips and snapshots must have `DateTimeOriginal` set to **local time with UTC offset** so Immich places them on the correct calendar day. `chrono::Local` is used at runtime — no hardcoded timezone. See `tag_file` and `write_xmp_sidecar` in `capture.rs`.
+
+## Capture debounce (as of 0.1.21)
+
+Capture uses a session-based debounce, not a fixed cooldown — see `run()` in `camera.rs`. First trigger captures and starts a session; further triggers are suppressed while the gap since the last trigger stays under `idle_debounce_seconds` (default 30) AND the session hasn't run longer than `max_session_seconds` (default 60). Both are tunable per-install via add-on options / `config.toml [storage]`, since a fixed cooldown alone can't collapse a single lingering visitor into one shot — it just delays the next one.
+
+`AI_TOPICS` in `camera.rs` controls which ONVIF detection types actually trigger a capture. `VehicleDetection` was removed from this list (0.1.21) because the property is on a main street and passing traffic produced constant false-positive captures — it's still recognized (no "unknown topic" log warning) but treated like raw motion.
+
+## Config-only changes don't need the full release process
+
+Adding/removing a camera or tuning `idle_debounce_seconds` / `max_session_seconds` / `pre_event_seconds` / `post_event_seconds` is an **add-on options change**, not a code change — no version bump, no CI build, no `ha store reload`. Apply it directly:
+
+1. Get current options: `ssh homeassistant.local 'curl -s -H "Authorization: Bearer $SUPERVISOR_TOKEN" http://supervisor/addons/6dcb2f9a_rustycam/info'`
+2. POST the full updated options object (Supervisor replaces the whole options blob, not a merge) to `http://supervisor/addons/6dcb2f9a_rustycam/options`
+3. `ssh homeassistant.local "ha apps restart 6dcb2f9a_rustycam"`
+
+The `ha` CLI on this box has no `options`/`set-options` subcommand for apps — the REST API + `$SUPERVISOR_TOKEN` (already in the SSH session's env) is the only way. See `reference_ha_addon_options` memory.
+
+New camera IP/username/password come from the Reolink integration's config entry (`/config/.storage/core.config_entries`, search by camera name) — don't guess credentials.
+
+## Camera migration status (HA automation → RustyCam)
+
+Migrated to RustyCam (HA "Snapshot" automation turned off + `initial_state: false` added in `snapshots.yaml`): `front_door_west`, `front_door`, `front_east`.
+
+Still on the legacy HA automations in `/config/automations/cameras/snapshots.yaml` (not yet added to RustyCam): `backyard_east_duo3`, `dogs_outside`, `garage_ptz`, `kennel`, `kids_room`. (Snapshot in time — check `snapshots.yaml` and RustyCam's options for current state before relying on this.)
+
+**Migration checklist for each remaining camera:**
+1. Add the camera to RustyCam's options (see above) and restart the add-on
+2. Confirm it shows up in `ha apps logs 6dcb2f9a_rustycam` (camera task starting + ONVIF subscription)
+3. Turn off the matching HA automation: `ha_call_service(domain="automation", service="turn_off", entity_id="automation.<camera>_snapshot")`
+4. Add `initial_state: false` to that automation's block in `snapshots.yaml` (SSH edit) so it doesn't silently re-enable on HA Core restart, then `ha_call_service(domain="automation", service="reload")`

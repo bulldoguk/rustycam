@@ -8,17 +8,17 @@ use crate::capture;
 use crate::config::{CameraConfig, StorageConfig};
 use crate::onvif;
 
-const DEBOUNCE_SECS: u64 = 5;
 const RENEW_INTERVAL_SECS: u64 = 1800; // 30 min
 const PULL_TIMEOUT_SECS: u32 = 5;      // long-poll window
 
 // Only AI-classification events trigger captures. Raw MotionAlarm fires on
-// bugs, leaves, etc. and is intentionally excluded here.
+// bugs, leaves, etc. and is intentionally excluded here. VehicleDetection is
+// also excluded — this property is on a main street, so passing traffic
+// makes it too noisy to capture on.
 const AI_TOPICS: &[&str] = &[
     "PeopleDetection",
     "DogCatDetection",
     "FaceDetection",
-    "VehicleDetection",
     "FieldDetector",
     "ObjectsInside",
     "MyRuleDetector",
@@ -38,7 +38,14 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
     // before accepting triggers, so clips always have full pre-event context.
     let mut warmup_until = Instant::now() + Duration::from_secs(storage_cfg.pre_event_seconds);
 
-    let mut last_event: Option<Instant> = None;
+    // Session tracking for capture debounce: a "session" is a run of triggers
+    // close enough together to be the same visit. We capture once at session
+    // start, then suppress further triggers until either the session goes
+    // idle (no triggers for idle_debounce_seconds) or runs long enough that
+    // a new visitor may have arrived (max_session_seconds), at which point
+    // we capture again and start a new session.
+    let mut session_start: Option<Instant> = None;
+    let mut last_seen: Option<Instant> = None;
     let mut last_renew = Instant::now();
 
     loop {
@@ -93,9 +100,14 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
             }
         };
 
-        // Only act on active AI-classification events; raw MotionAlarm is excluded
+        // Only act on active AI-classification events; raw MotionAlarm is excluded.
+        // Per-camera excluded_topics matches against the topic's final segment
+        // (e.g. "VehicleDetect"), so a noisy detector can be silenced on one
+        // camera without affecting others that rely on the same AI_TOPICS entry.
         let triggered = events.iter().any(|e| {
-            e.is_active && AI_TOPICS.iter().any(|t| e.topic.contains(t))
+            e.is_active
+                && AI_TOPICS.iter().any(|t| e.topic.contains(t))
+                && !config.excluded_topics.iter().any(|t| e.topic.ends_with(t.as_str()))
         });
         if !triggered {
             continue;
@@ -113,12 +125,24 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
             .collect();
         info!("[{}] Triggered — topics: {:?}", config.id, active_topics);
 
-        // Debounce
-        if last_event.map_or(false, |t| t.elapsed() < Duration::from_secs(DEBOUNCE_SECS)) {
-            info!("[{}] Debounced", config.id);
+        // Session-based debounce
+        let now = Instant::now();
+        let idle_gap = last_seen.map_or(Duration::from_secs(0), |t| now.duration_since(t));
+        let session_age = session_start.map_or(Duration::from_secs(0), |t| now.duration_since(t));
+        last_seen = Some(now);
+
+        let in_session = session_start.is_some()
+            && idle_gap < Duration::from_secs(storage_cfg.idle_debounce_seconds);
+
+        if in_session && session_age < Duration::from_secs(storage_cfg.max_session_seconds) {
+            info!("[{}] Debounced (same session)", config.id);
             continue;
         }
-        last_event = Some(Instant::now());
+
+        // Either a fresh session (idle gap exceeded) or the current session
+        // ran long enough that a new visitor may have shown up — capture and
+        // start a new session clock.
+        session_start = Some(now);
 
         let timestamp = Utc::now();
         let config = config.clone();

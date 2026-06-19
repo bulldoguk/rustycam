@@ -6,6 +6,8 @@ OPTIONS=/data/options.json
 STORAGE_PATH=$(jq -r '.storage_path' "$OPTIONS")
 PRE_EVENT=$(jq -r '.pre_event_seconds' "$OPTIONS")
 POST_EVENT=$(jq -r '.post_event_seconds' "$OPTIONS")
+IDLE_DEBOUNCE=$(jq -r '.idle_debounce_seconds' "$OPTIONS")
+MAX_SESSION=$(jq -r '.max_session_seconds' "$OPTIONS")
 
 mkdir -p "$STORAGE_PATH"
 
@@ -22,6 +24,8 @@ ring_segment_seconds = 5
 ring_segments_kept = 12
 pre_event_seconds = $PRE_EVENT
 post_event_seconds = $POST_EVENT
+idle_debounce_seconds = $IDLE_DEBOUNCE
+max_session_seconds = $MAX_SESSION
 
 [database]
 path = "/data/rustycam.db"

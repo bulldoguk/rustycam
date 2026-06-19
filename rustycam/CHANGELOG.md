@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.22 (2026-06-19)
+
+### Added
+- Per-camera `excluded_topics` option: detection types matching the topic's final segment (e.g. `VehicleDetect`) are recognized but not captured for that camera, without affecting other cameras that share the same ONVIF rule name (`MyRuleDetector`). Needed because `front_east`'s custom Reolink AI rule reports vehicle detections under `MyRuleDetector`, so the existing global `VehicleDetection` exclusion from 0.1.21 didn't catch it.
+
+## 0.1.21 (2026-06-19)
+
+### Changed
+- Replaced the fixed 5s capture debounce with a session-based debounce: the first trigger captures and starts a "session"; further triggers are suppressed until either the session goes idle (`idle_debounce_seconds`, default 30s) or runs longer than `max_session_seconds` (default 60s), at which point a new capture is taken and the session restarts. This collapses repeated AI re-detections from one lingering visitor into far fewer shots, while still capturing again if a second visitor shows up during a long, continuously-triggering session. Both values are now configurable per-install via the add-on options (and in `config.toml` under `[storage]`).
+- `VehicleDetection` no longer triggers a capture. The property is on a main street, so passing traffic was generating constant false-positive captures. The topic is still recognized (no "unknown topic" log warning) but treated like raw motion — logged, not captured.
+
 ## 0.1.20 (2026-06-16)
 
 ### Fixed
