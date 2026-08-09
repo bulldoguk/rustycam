@@ -2,6 +2,20 @@
 
 type: coding
 
+## Roadmap: deprecating the HA snapshot-automation path
+As of 2026-06-21, plan is to phase out the HA camera-snapshot automations
+(`camera.snapshot`/`camera.record` → `shell_command.immich_ingest_snapshot`,
+see "Camera snapshot automation pattern" in
+[[projects/home-assistant/CLAUDE|home-assistant]]) over the coming weeks,
+moving fully onto RustyCam's own capture pipeline. Once that happens:
+- The dual-path Immich ingestion note above (API push vs. filesystem watcher)
+  collapses to just the watcher path, since RustyCam never calls the Immich
+  API directly.
+- The HA automations in `/config/automations/cameras/snapshots.yaml` and
+  `immich_import_and_tag.sh` become candidates for removal — don't delete
+  them preemptively; wait until RustyCam is confirmed covering all cameras
+  cleanly.
+
 ## Repo
 - Local path: ~/Documents/claude/projects/rustycam  (symlinked from ~/Documents/rustycam)
 - Remote: https://github.com/bulldoguk/rustycam.git
@@ -83,6 +97,19 @@ Must match `*.mp4.xmp` sidecars alongside `*.jpg`/`*.jpeg`/`*.mp4` in its `find`
 orphan forever once their parent file is deleted — this bit us once (see CHANGELOG-style note
 in commit history around 2026-06-19, found via a bloated Immich library crawl).
 
+## Immich library scan schedule (fixed 2026-06-21)
+Immich's `system-config` `library.scan.cronExpression` was misconfigured to `*/5 * * * *` (every 5 minutes) instead of a nightly schedule. Every 5-minute run re-queued a full re-check of the entire library (~30K assets) plus a disk crawl, faster than the thumbnail/metadata workers (concurrency 3 and 5) could drain — this kept `thumbnailGeneration` stuck around ~26K waiting jobs for at least two days, looking like a stalled pipeline when it was actually an infinite top-up loop.
+
+**New files don't depend on this scan.** Two separate real-time paths cover ingestion, neither of which is the cron scan:
+- HA's camera-snapshot automations (the `camera.snapshot`/`camera.record` pattern) call `shell_command.immich_ingest_snapshot` → `immich_import_and_tag.sh`, which POSTs directly to `/assets` right after capture.
+- **RustyCam itself does NOT call this script or the Immich API** — `capture.rs` writes clips straight to disk under `storage_path`. Those files are picked up by Immich's filesystem **watcher** (`library.watch.enabled: true`), which ingests on fs-change events, not by the API push.
+
+The scheduled scan is just a periodic consistency sweep (catches anything the watcher missed, e.g. if Immich was down when a file landed) — it's not anyone's primary ingestion path.
+
+**Fixed:** `cronExpression` set to `"30 3 * * *"` (3:30 AM, staggered after the 2:00 AM Immich DB backup and before the 3:15 AM `cleanup_reolink_snapshots.sh` job). Changed via `PUT /api/system-config` (full-object PUT required — partial payloads 400). Immich API URL/key are in HA `secrets.yaml` (`immich_api_url`, `immich_api_key`), readable the same way `immich_import_and_tag.sh` does (`read_secret` awk helper) — no need to print the key to inspect or change config, pipe straight from secrets file into curl on the HA host via SSH.
+
+**To check job queue health:** `GET /api/jobs` (same auth) returns per-queue `active`/`waiting`/`failed`/`completed` counts — `active > 0` and `waiting` trending down means it's actually draining; flat `waiting` across days despite nonzero `active` is the signature of this exact bug (a scan/recheck re-adding jobs faster than workers clear them).
+
 ## Timezone / Immich
 
 Clips and snapshots must have `DateTimeOriginal` set to **local time with UTC offset** so Immich places them on the correct calendar day. `chrono::Local` is used at runtime — no hardcoded timezone. See `tag_file` and `write_xmp_sidecar` in `capture.rs`.
@@ -107,9 +134,10 @@ New camera IP/username/password come from the Reolink integration's config entry
 
 ## Camera migration status (HA automation → RustyCam)
 
-Migrated to RustyCam (HA "Snapshot" automation turned off + `initial_state: false` added in `snapshots.yaml`): `front_door_west`, `front_door`, `front_east`.
+**All 8 cameras migrated to RustyCam** as of 2026-07-10 (HA "Snapshot" automations all turned off + `initial_state: false` in `snapshots.yaml`): `front_door_west`, `front_door`, `front_east`, `backyard_east_duo3`, `dogs_outside`, `garage_ptz`, `kennel`, `kids_room`. The HA snapshot-automation path is now fully idle — candidates for removal per the roadmap above once RustyCam has a few clean days across all cameras. (Snapshot in time — check `snapshots.yaml` and RustyCam's options for current state before relying on this.)
 
-Still on the legacy HA automations in `/config/automations/cameras/snapshots.yaml` (not yet added to RustyCam): `backyard_east_duo3`, `dogs_outside`, `garage_ptz`, `kennel`, `kids_room`. (Snapshot in time — check `snapshots.yaml` and RustyCam's options for current state before relying on this.)
+### kids_room TLS gotcha (resolved 2026-07-10)
+`kids_room` (RLC-520A, newer fw `v3.2.0.5180` / hw `IPC_MS4NA45MP`) initially crash-looped in RustyCam with `invalid peer certificate: Other(OtherError(UnsupportedCertVersion))`. Root cause was **camera-side, not RustyCam**: the camera had `httpEnable: 0` (plain HTTP disabled, HTTPS-only), so its port-80 ONVIF endpoint returned `302 → https://<ip>`, and RustyCam's reqwest/rustls client rejected the camera's old self-signed cert. The kennel — same RLC-520A model but older fw `v3.0.0.4348` — ships `httpEnable: 1` and never redirects. **Fix:** re-enabled HTTP via the Reolink API (`SetNetPort` with `httpEnable: 1`, HTTPS left on) so ONVIF stays on plain HTTP like every other camera. Reolink NetPort query/set over `cgi-bin/api.cgi` (Login → token → GetNetPort/SetNetPort). Newer Reolink firmware may default to HTTPS-only — check `httpEnable` first if a new camera hits this rustls error. A durable RustyCam-side fix (accept self-signed ONVIF certs / don't follow http→https redirects) is still worth doing so this can't recur on the next firmware bump.
 
 **Migration checklist for each remaining camera:**
 1. Add the camera to RustyCam's options (see above) and restart the add-on
