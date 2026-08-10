@@ -52,6 +52,13 @@ pub async fn capture_event(
     timestamp: DateTime<Utc>,
     topics: &[String],
 ) -> Result<()> {
+    // Checked per event, not just at startup: the mount can disappear while we
+    // are running (that is exactly how it has failed in practice), so a
+    // start-up-only check would not catch it.
+    if !storage::storage_available(cfg) {
+        return Ok(());
+    }
+
     let event_id = Uuid::new_v4().to_string();
 
     let detection_type = topics

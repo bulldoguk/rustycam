@@ -85,17 +85,49 @@ Matches the HA automation convention so RustyCam is a drop-in replacement:
 ```
 Timestamps use local time (`chrono::Local`). Detection type is the first normalised ONVIF topic (`person`, `animal`, `vehicle`), falling back to `motion`.
 
-Set `storage_path` to `/media/ha_media/reolink` to share the same directory tree as the HA snapshot automations.
+### Where storage_path points (updated 2026-08-09 — ADR 0010)
+
+`storage_path` is **`/media/reolink_box`** on this install. That is a Supervisor `media`-usage
+CIFS mount of `//192.168.20.90/reolink` — a Samba share on the **brain box** exposing
+`/home/gary/reolink`. Immich then reads that same directory as **local disk**, so only the
+RustyCam write crosses SMB and all thumbnail/encode work stays local.
+
+> ⚠️ **The NAS is not in this path.** An older version of this doc said to set `storage_path` to
+> `/media/ha_media/reolink` (the Buffalo NAS at `192.168.20.7`). That was correct pre-ADR-0010 and
+> is now wrong — following it sends clips somewhere nothing collects them. `/media/ha_media` is
+> still mounted for other purposes; don't confuse the two.
+
+Set `require_mount: true` (0.1.25+) alongside it. Without the guard, if that SMB mount drops,
+writes silently land on the HA box's internal eMMC — see the "Mount guard" note below.
+
+### Mount guard (0.1.25+)
+
+`require_mount: true` makes RustyCam refuse to start, and drop events rather than write, whenever
+`storage_path` is not actually a mountpoint. This exists because on 2026-08-08 the mount dropped
+after a power loss and RustyCam filled the 114 GB internal disk to **0 bytes free** at ~6.7 GB/day —
+a dead CIFS mount does not fail writes, it redirects them to local disk. The local files then
+blocked Supervisor from remounting (`existing data at /data/media/reolink_box`), turning a transient
+blip into a nine-day outage. Keeping the mountpoint empty is what makes recovery automatic.
+`GET /status` reports `{storage_mounted, events_dropped}` for alerting.
 
 ## Cleanup job
 
 `/config/shell_scripts/cleanup_reolink_snapshots.sh` runs nightly at 03:15 (automation in
 `/config/automations/cameras/snapshots.yaml` → `shell_command.cleanup_reolink_snapshots`).
-Deletes files under `ROOT_DIR` (default `/media/ha_media/reolink`) older than `RETENTION_DAYS`
-(default 7), and also deletes the matching Immich asset via the Immich API when one exists.
-Must match `*.mp4.xmp` sidecars alongside `*.jpg`/`*.jpeg`/`*.mp4` in its `find`, or sidecars
-orphan forever once their parent file is deleted — this bit us once (see CHANGELOG-style note
-in commit history around 2026-06-19, found via a bloated Immich library crawl).
+Deletes files under `ROOT_DIR` (default **`/media/reolink_box`**) older than `RETENTION_DAYS`
+(default **10**), and also deletes the matching Immich asset via the Immich API when one exists.
+Both defaults were corrected 2026-08-09: `ROOT_DIR` had still pointed at the old NAS path, so the
+job was faithfully pruning a tree that no longer held the captures while the real library grew to
+132 GB unchecked.
+
+Its `find` must match every file type that can appear in a day folder, or `rmdir` fails and that
+day **wedges permanently** — the script deliberately refuses to `rm -rf`. Known suffixes that have
+each had to be added after biting us: `*.mp4.xmp` sidecars (2026-06-19), `*_exiftool_tmp`
+(underscore, so `*.tmp` never matched it) and `.__smb*` Samba orphans (both 2026-08-09).
+
+Bulk deletes over this CIFS mount need **multiple passes** — a single pass reports success while
+leaving most files behind. The script's "leaving for a future run" behaviour handles this correctly
+on a nightly cadence; don't "fix" it.
 
 ## Immich library scan schedule (fixed 2026-06-21)
 Immich's `system-config` `library.scan.cronExpression` was misconfigured to `*/5 * * * *` (every 5 minutes) instead of a nightly schedule. Every 5-minute run re-queued a full re-check of the entire library (~30K assets) plus a disk crawl, faster than the thumbnail/metadata workers (concurrency 3 and 5) could drain — this kept `thumbnailGeneration` stuck around ~26K waiting jobs for at least two days, looking like a stalled pipeline when it was actually an infinite top-up loop.

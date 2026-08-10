@@ -29,6 +29,11 @@ pub struct StorageConfig {
     pub idle_debounce_seconds: u64,
     #[serde(default = "default_max_session_seconds")]
     pub max_session_seconds: u64,
+    /// Treat `base_path` as a network mount: refuse to start, and drop events
+    /// rather than write, whenever it is not actually mounted. Defaults to false
+    /// so a plain local `storage_path` keeps working unchanged.
+    #[serde(default)]
+    pub require_mount: bool,
 }
 
 fn default_idle_debounce_seconds() -> u64 {
@@ -186,5 +191,35 @@ excluded_topics = ["VehicleDetect"]
             excluded_topics: vec![],
         };
         assert_eq!(cam.onvif_event_url(), "http://192.168.20.20/onvif/event_service");
+    }
+}
+
+#[cfg(test)]
+mod require_mount_tests {
+    use super::*;
+
+    #[test]
+    fn require_mount_parses_from_toml_and_defaults_off() {
+        let with = r#"
+[server]
+port = 8090
+bind = "0.0.0.0"
+[storage]
+base_path = "/media/reolink_box"
+ring_buffer_dir = "/tmp/ring"
+ring_segment_seconds = 5
+ring_segments_kept = 12
+pre_event_seconds = 15
+post_event_seconds = 15
+require_mount = true
+[database]
+path = "/data/rustycam.db"
+"#;
+        let cfg: Config = toml::from_str(with).unwrap();
+        assert!(cfg.storage.require_mount, "require_mount must round-trip from run.sh TOML");
+
+        let without = with.replace("require_mount = true\n", "");
+        let cfg: Config = toml::from_str(&without).unwrap();
+        assert!(!cfg.storage.require_mount, "must default off for existing installs");
     }
 }

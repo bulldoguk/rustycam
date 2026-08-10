@@ -8,8 +8,24 @@ PRE_EVENT=$(jq -r '.pre_event_seconds' "$OPTIONS")
 POST_EVENT=$(jq -r '.post_event_seconds' "$OPTIONS")
 IDLE_DEBOUNCE=$(jq -r '.idle_debounce_seconds' "$OPTIONS")
 MAX_SESSION=$(jq -r '.max_session_seconds' "$OPTIONS")
+REQUIRE_MOUNT=$(jq -r '.require_mount // false' "$OPTIONS")
 
-mkdir -p "$STORAGE_PATH"
+# When storage_path is meant to be a network mount, do NOT mkdir it. Creating
+# the directory here is precisely what turns a missing mount into a local
+# directory, after which writes silently fill the host disk and Supervisor
+# refuses to remount ("existing data at ..."). Fail loudly instead.
+if [ "$REQUIRE_MOUNT" = "true" ]; then
+  # `mountpoint` is not present in every base image; compare device ids instead.
+  dev_self=$(stat -c %d "$STORAGE_PATH" 2>/dev/null || echo "")
+  dev_parent=$(stat -c %d "$(dirname "$STORAGE_PATH")" 2>/dev/null || echo "")
+  if [ -z "$dev_self" ] || [ "$dev_self" = "$dev_parent" ]; then
+    echo "FATAL: storage_path $STORAGE_PATH is not a mountpoint and require_mount is enabled." >&2
+    echo "       Refusing to start rather than write camera footage to local disk." >&2
+    exit 1
+  fi
+else
+  mkdir -p "$STORAGE_PATH"
+fi
 
 {
   cat <<TOML
@@ -26,6 +42,7 @@ pre_event_seconds = $PRE_EVENT
 post_event_seconds = $POST_EVENT
 idle_debounce_seconds = $IDLE_DEBOUNCE
 max_session_seconds = $MAX_SESSION
+require_mount = $REQUIRE_MOUNT
 
 [database]
 path = "/data/rustycam.db"
