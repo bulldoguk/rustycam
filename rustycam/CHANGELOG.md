@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.25 (2026-08-09)
+
+### Added
+- New `require_mount` add-on option (default `false`, so existing installs and the default local `storage_path` are unchanged). When enabled, RustyCam treats `storage_path` as a network mount and **refuses to write anything unless it is actually mounted**.
+  - At startup, `run.sh` no longer runs `mkdir -p "$STORAGE_PATH"` when `require_mount` is set, and `storage::init_dirs()` refuses to create the directory — it exits with a clear error instead. Creating the directory is exactly what turns a missing mount into a plain local directory.
+  - At capture time, `capture_event()` re-checks before writing. This is the case that matters: the mount can disappear while RustyCam is running healthily, so a startup-only check would not catch it.
+  - When storage is unavailable the event is dropped, the process **stays alive** (HTTP server and ONVIF subscriptions keep running), and one error is logged per transition rather than one per event. Recording resumes by itself when the mount returns, logging how many events were dropped.
+  - Mount detection compares the `st_dev` of the path against its parent, so it needs no extra crate and does not rely on `mountpoint(1)` being present in the image (`run.sh` uses the equivalent `stat -c %d` comparison).
+- New `GET /status` endpoint returning `{"storage_mounted": bool, "events_dropped": n}`, so Home Assistant can alert on storage going away rather than nobody noticing for days. `GET /health` is unchanged and still returns a bare `ok`.
+
+### Why
+On 2026-08-08 the SMB mount to the brain box (`/media/reolink_box`) dropped after a power loss. A dead CIFS mount does not fail writes — it silently redirects them to local disk. RustyCam kept recording at ~6.7 GB/day into the Home Assistant box's internal 114 GB eMMC until it hit **0 bytes free**. Worse, those local files then blocked Supervisor from ever remounting the share (`Cannot mount ... existing data at /data/media/reolink_box`), so a transient network blip became a permanent outage that starved the Immich pipeline for nine days. Keeping the mountpoint empty is what makes recovery automatic.
+
+### Tests
+- `is_mountpoint` on `/` and on an ordinary nested directory.
+- `init_dirs` refuses **and creates nothing** when `require_mount` is set and the path is absent or is a plain directory.
+- `init_dirs` still creates directories normally when `require_mount` is `false` (back-compat).
+- `storage_available` short-circuits to `true` when the guard is disabled.
+
 ## 0.1.24 (2026-06-19)
 
 ### Added
