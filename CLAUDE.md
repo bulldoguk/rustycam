@@ -125,6 +125,8 @@ day **wedges permanently** — the script deliberately refuses to `rm -rf`. Know
 each had to be added after biting us: `*.mp4.xmp` sidecars (2026-06-19), `*_exiftool_tmp`
 (underscore, so `*.tmp` never matched it) and `.__smb*` Samba orphans (both 2026-08-09).
 
+⚠️ **Known defect (found 2026-09-13):** because the script `rm`s files *before* calling `DELETE /api/assets` (`force:false`), Immich's watcher hard-deletes the asset rows without removing thumbnails/transcodes, orphaning ~300 assets' derivatives per night (274 GB had built up). Root cause, evidence and the proposed fix (`force:true`, let Immich delete the files) are in [[projects/brain-server/deploy/immich/README|the Immich runbook]].
+
 Bulk deletes over this CIFS mount need **multiple passes** — a single pass reports success while
 leaving most files behind. The script's "leaving for a future run" behaviour handles this correctly
 on a nightly cadence; don't "fix" it.
