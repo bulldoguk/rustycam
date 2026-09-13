@@ -125,7 +125,7 @@ day **wedges permanently** — the script deliberately refuses to `rm -rf`. Know
 each had to be added after biting us: `*.mp4.xmp` sidecars (2026-06-19), `*_exiftool_tmp`
 (underscore, so `*.tmp` never matched it) and `.__smb*` Samba orphans (both 2026-08-09).
 
-⚠️ **Known defect (found 2026-09-13):** because the script `rm`s files *before* calling `DELETE /api/assets` (`force:false`), Immich's watcher hard-deletes the asset rows without removing thumbnails/transcodes, orphaning ~300 assets' derivatives per night (274 GB had built up). Root cause, evidence and the proposed fix (`force:true`, let Immich delete the files) are in [[projects/brain-server/deploy/immich/README|the Immich runbook]].
+**Deletion order — fixed 2026-09-13.** The script used to `rm` files *before* calling `DELETE /api/assets` (`force:false`), so Immich's watcher hard-deleted the asset rows without removing thumbnails/transcodes, orphaning ~300 assets' derivatives per night (274 GB had built up). It now deletes matched assets with **`force:true` and does not `rm` their originals** — Immich removes the row, derivatives, sidecar and file itself — and `rm`s only files with no Immich asset. Day folders holding files left for Immich are logged `PENDING_IMMICH` and `rmdir`'d on the next run, so one day of folders always lags; that is expected, not a wedge. The run also aborts before deleting anything if the Immich search fails or the API secrets are missing (`ALLOW_NO_IMMICH=1` overrides). Root cause and evidence: [[projects/brain-server/deploy/immich/README|the Immich runbook]].
 
 Bulk deletes over this CIFS mount need **multiple passes** — a single pass reports success while
 leaving most files behind. The script's "leaving for a future run" behaviour handles this correctly
