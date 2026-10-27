@@ -3,3 +3,8 @@ target/
 *.db-shm
 *.db-wal
 config.dev.toml
+
+# Vault notes: private, never published (2026-10-27)
+CLAUDE.md
+# macOS AppleDouble files from the SMB mount
+._*
