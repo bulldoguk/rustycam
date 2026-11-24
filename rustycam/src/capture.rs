@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Local, Utc};
 use sqlx::SqlitePool;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::process::{Child, Command};
 use tracing::{info, warn};
@@ -41,7 +41,11 @@ pub async fn start_ring_buffer(cam: &CameraConfig, cfg: &StorageConfig) -> Resul
         .spawn()
         .context("Failed to spawn ffmpeg — is ffmpeg installed?")?;
 
-    info!("Ring buffer started for camera {} ({})", cam.id, cam.rtsp_url());
+    info!(
+        "Ring buffer started for camera {} ({})",
+        cam.id,
+        cam.rtsp_url()
+    );
     Ok(child)
 }
 
@@ -91,10 +95,17 @@ pub async fn capture_event(
     }
     // Guard against ffmpeg exiting 0 but producing an empty/header-only container
     // (can happen with -fflags +discardcorrupt when all ring buffer packets are bad)
-    let clip_size = tokio::fs::metadata(&clip).await.map(|m| m.len()).unwrap_or(0);
+    let clip_size = tokio::fs::metadata(&clip)
+        .await
+        .map(|m| m.len())
+        .unwrap_or(0);
     if clip_size < 1024 {
         let _ = tokio::fs::remove_file(&clip).await;
-        bail!("ffmpeg produced a near-empty clip ({} bytes) for camera {} — discarding", clip_size, cam.id);
+        bail!(
+            "ffmpeg produced a near-empty clip ({} bytes) for camera {} — discarding",
+            clip_size,
+            cam.id
+        );
     }
     // Clips use XMP sidecar only — writing EXIF directly into an MP4 with
     // -overwrite_original can delete or truncate the file if exiftool fails
@@ -115,24 +126,12 @@ fn normalize_event_label(raw: &str) -> &str {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn normalizes_known_labels() {
-        assert_eq!(normalize_event_label("PeopleDetect"), "person");
-        assert_eq!(normalize_event_label("DogCatDetect"), "animal");
-        assert_eq!(normalize_event_label("VehicleDetect"), "vehicle");
-    }
-
-    #[test]
-    fn passes_through_unknown_labels() {
-        assert_eq!(normalize_event_label("FieldDetector"), "FieldDetector");
-    }
-}
-
-async fn write_xmp_sidecar(cam: &CameraConfig, path: &PathBuf, topics: &[String], timestamp: DateTime<Utc>) {
+async fn write_xmp_sidecar(
+    cam: &CameraConfig,
+    path: &Path,
+    topics: &[String],
+    timestamp: DateTime<Utc>,
+) {
     let labels: Vec<&str> = topics
         .iter()
         .map(|t| normalize_event_label(t.rsplit('/').next().unwrap_or(t.as_str())))
@@ -175,12 +174,15 @@ async fn write_xmp_sidecar(cam: &CameraConfig, path: &PathBuf, topics: &[String]
 
     match result {
         Ok(s) if s.success() => {}
-        Ok(_) => warn!("exiftool sidecar write returned non-zero for {}", path.display()),
+        Ok(_) => warn!(
+            "exiftool sidecar write returned non-zero for {}",
+            path.display()
+        ),
         Err(e) => warn!("exiftool not available, skipping XMP sidecar: {e}"),
     }
 }
 
-async fn tag_file(cam: &CameraConfig, path: &PathBuf, topics: &[String], timestamp: DateTime<Utc>) {
+async fn tag_file(cam: &CameraConfig, path: &Path, topics: &[String], timestamp: DateTime<Utc>) {
     // Extract the last path segment of each ONVIF topic as a human-readable label
     // e.g. "tns1:RuleEngine/MyRuleDetector/PeopleDetect" → "PeopleDetect"
     let labels: Vec<&str> = topics
@@ -234,18 +236,24 @@ async fn tag_file(cam: &CameraConfig, path: &PathBuf, topics: &[String], timesta
     }
 }
 
-async fn frame_from_rtsp(cam: &CameraConfig, dest: &PathBuf) -> Result<()> {
+async fn frame_from_rtsp(cam: &CameraConfig, dest: &Path) -> Result<()> {
     // Pull one frame directly from the live RTSP stream at the moment of trigger.
     // -strict unofficial: allows MJPEG output from limited-range H.264 YUV.
     let status = Command::new("ffmpeg")
         .args([
             "-y",
-            "-rtsp_transport", "tcp",
-            "-i", &cam.rtsp_url(),
-            "-frames:v", "1",
-            "-update", "1",
-            "-strict", "unofficial",
-            "-q:v", "2",
+            "-rtsp_transport",
+            "tcp",
+            "-i",
+            &cam.rtsp_url(),
+            "-frames:v",
+            "1",
+            "-update",
+            "1",
+            "-strict",
+            "unofficial",
+            "-q:v",
+            "2",
             dest.to_str().unwrap(),
         ])
         .stdout(Stdio::null())
@@ -260,7 +268,12 @@ async fn frame_from_rtsp(cam: &CameraConfig, dest: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-async fn extract_clip(cam: &CameraConfig, cfg: &StorageConfig, output: &PathBuf, event_id: &str) -> Result<()> {
+async fn extract_clip(
+    cam: &CameraConfig,
+    cfg: &StorageConfig,
+    output: &Path,
+    event_id: &str,
+) -> Result<()> {
     let buf_dir = PathBuf::from(&cfg.ring_buffer_dir).join(&cam.id);
 
     // Collect segments sorted by mtime — ring buffer wraps numerically so
@@ -272,7 +285,7 @@ async fn extract_clip(cam: &CameraConfig, cfg: &StorageConfig, output: &PathBuf,
     let mut entries = tokio::fs::read_dir(&buf_dir).await?;
     while let Some(entry) = entries.next_entry().await? {
         let p = entry.path();
-        if p.extension().map_or(false, |e| e == "ts") {
+        if p.extension().is_some_and(|e| e == "ts") {
             if let Ok(meta) = entry.metadata().await {
                 if meta.len() > 0 {
                     segments.push((meta.modified().unwrap_or(std::time::UNIX_EPOCH), p));
@@ -333,4 +346,21 @@ async fn extract_clip(cam: &CameraConfig, cfg: &StorageConfig, output: &PathBuf,
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_known_labels() {
+        assert_eq!(normalize_event_label("PeopleDetect"), "person");
+        assert_eq!(normalize_event_label("DogCatDetect"), "animal");
+        assert_eq!(normalize_event_label("VehicleDetect"), "vehicle");
+    }
+
+    #[test]
+    fn passes_through_unknown_labels() {
+        assert_eq!(normalize_event_label("FieldDetector"), "FieldDetector");
+    }
 }

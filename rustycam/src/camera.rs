@@ -9,7 +9,7 @@ use crate::config::{CameraConfig, StorageConfig};
 use crate::onvif::{self, OnvifEvent};
 
 const RENEW_INTERVAL_SECS: u64 = 1800; // 30 min
-const PULL_TIMEOUT_SECS: u32 = 5;      // long-poll window
+const PULL_TIMEOUT_SECS: u32 = 5; // long-poll window
 
 // Only AI-classification events trigger captures. Raw MotionAlarm fires on
 // bugs, leaves, etc. and is intentionally excluded here. VehicleDetection is
@@ -34,7 +34,9 @@ fn is_triggered(events: &[OnvifEvent], excluded_topics: &[String]) -> bool {
     events.iter().any(|e| {
         e.is_active
             && AI_TOPICS.iter().any(|t| e.topic.contains(t))
-            && !excluded_topics.iter().any(|t| e.topic.ends_with(t.as_str()))
+            && !excluded_topics
+                .iter()
+                .any(|t| e.topic.ends_with(t.as_str()))
     })
 }
 
@@ -87,7 +89,8 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
                     Ok(r) => {
                         ring = r;
                         // Reset warmup — new ring buffer has no pre-event footage yet
-                        warmup_until = Instant::now() + Duration::from_secs(storage_cfg.pre_event_seconds);
+                        warmup_until =
+                            Instant::now() + Duration::from_secs(storage_cfg.pre_event_seconds);
                     }
                     Err(e) => {
                         warn!("[{}] Failed to restart ring buffer: {e}", config.id);
@@ -101,18 +104,21 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
         }
 
         // Long-poll: blocks here up to PULL_TIMEOUT_SECS, returns immediately on event
-        let events = match onvif::pull_messages(&http, &subscription, &config, PULL_TIMEOUT_SECS).await {
-            Ok(e) => e,
-            Err(e) => {
-                warn!("[{}] pull_messages error: {e}, re-subscribing", config.id);
-                match onvif::subscribe(&http, &config).await {
-                    Ok(s) => { subscription = s; }
-                    Err(e) => warn!("[{}] Re-subscribe failed: {e}", config.id),
+        let events =
+            match onvif::pull_messages(&http, &subscription, &config, PULL_TIMEOUT_SECS).await {
+                Ok(e) => e,
+                Err(e) => {
+                    warn!("[{}] pull_messages error: {e}, re-subscribing", config.id);
+                    match onvif::subscribe(&http, &config).await {
+                        Ok(s) => {
+                            subscription = s;
+                        }
+                        Err(e) => warn!("[{}] Re-subscribe failed: {e}", config.id),
+                    }
+                    tokio::time::sleep(Duration::from_secs(3)).await;
+                    continue;
                 }
-                tokio::time::sleep(Duration::from_secs(3)).await;
-                continue;
-            }
-        };
+            };
 
         if !is_triggered(&events, &config.excluded_topics) {
             continue;
@@ -120,11 +126,15 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
 
         // Don't capture until the ring buffer has enough pre-event footage
         if Instant::now() < warmup_until {
-            info!("[{}] Triggered but ring buffer still warming up, skipping", config.id);
+            info!(
+                "[{}] Triggered but ring buffer still warming up, skipping",
+                config.id
+            );
             continue;
         }
 
-        let active_topics: Vec<String> = events.iter()
+        let active_topics: Vec<String> = events
+            .iter()
             .filter(|e| e.is_active)
             .map(|e| e.topic.clone())
             .collect();
@@ -155,7 +165,9 @@ pub async fn run(config: CameraConfig, storage_cfg: StorageConfig, db: SqlitePoo
         let db = db.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = capture::capture_event(&config, &storage_cfg, &db, timestamp, &active_topics).await {
+            if let Err(e) =
+                capture::capture_event(&config, &storage_cfg, &db, timestamp, &active_topics).await
+            {
                 tracing::error!("[{}] Capture error: {e:#}", config.id);
             }
         });

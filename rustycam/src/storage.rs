@@ -105,7 +105,12 @@ pub async fn init_db(cfg: &DatabaseConfig) -> Result<SqlitePool> {
 
 // Matches the HA automation convention:
 // {base}/{camera_id}/{detection_type}/{YYYY}/{MM}/{DD}/{camera_id}_{detection_type}_{YYYY-MM-DD_HH-MM-SS}.jpg
-pub fn snapshot_path(base: &str, camera_id: &str, detection_type: &str, ts: &DateTime<Utc>) -> PathBuf {
+pub fn snapshot_path(
+    base: &str,
+    camera_id: &str,
+    detection_type: &str,
+    ts: &DateTime<Utc>,
+) -> PathBuf {
     let local = ts.with_timezone(&Local);
     PathBuf::from(base)
         .join(camera_id)
@@ -113,7 +118,10 @@ pub fn snapshot_path(base: &str, camera_id: &str, detection_type: &str, ts: &Dat
         .join(local.format("%Y").to_string())
         .join(local.format("%m").to_string())
         .join(local.format("%d").to_string())
-        .join(format!("{camera_id}_{detection_type}_{}.jpg", local.format("%Y-%m-%d_%H-%M-%S")))
+        .join(format!(
+            "{camera_id}_{detection_type}_{}.jpg",
+            local.format("%Y-%m-%d_%H-%M-%S")
+        ))
 }
 
 pub fn clip_path(base: &str, camera_id: &str, detection_type: &str, ts: &DateTime<Utc>) -> PathBuf {
@@ -124,7 +132,10 @@ pub fn clip_path(base: &str, camera_id: &str, detection_type: &str, ts: &DateTim
         .join(local.format("%Y").to_string())
         .join(local.format("%m").to_string())
         .join(local.format("%d").to_string())
-        .join(format!("{camera_id}_{detection_type}_{}.mp4", local.format("%Y-%m-%d_%H-%M-%S")))
+        .join(format!(
+            "{camera_id}_{detection_type}_{}.mp4",
+            local.format("%Y-%m-%d_%H-%M-%S")
+        ))
 }
 
 pub async fn insert_event(
@@ -132,8 +143,8 @@ pub async fn insert_event(
     event_id: &str,
     cam: &CameraConfig,
     timestamp: &DateTime<Utc>,
-    snapshot: &PathBuf,
-    clip: &PathBuf,
+    snapshot: &Path,
+    clip: &Path,
 ) -> Result<()> {
     let ts = timestamp.to_rfc3339();
     let snap = snapshot.to_string_lossy().to_string();
@@ -202,12 +213,18 @@ mod tests {
         // Path does not exist at all -> must fail, and must not be created.
         let err = init_dirs(&cfg(base.to_str().unwrap(), true)).await;
         assert!(err.is_err(), "expected refusal when storage_path is absent");
-        assert!(!base.exists(), "guard must not create the mountpoint directory");
+        assert!(
+            !base.exists(),
+            "guard must not create the mountpoint directory"
+        );
 
         // Path exists but is a plain directory -> must still fail.
         std::fs::create_dir_all(&base).unwrap();
         let err = init_dirs(&cfg(base.to_str().unwrap(), true)).await;
-        assert!(err.is_err(), "expected refusal when storage_path is not a mount");
+        assert!(
+            err.is_err(),
+            "expected refusal when storage_path is not a mount"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -216,7 +233,9 @@ mod tests {
     async fn init_dirs_creates_normally_when_require_mount_is_off() {
         let dir = scratch("backcompat");
         let base = dir.join("local_storage");
-        init_dirs(&cfg(base.to_str().unwrap(), false)).await.unwrap();
+        init_dirs(&cfg(base.to_str().unwrap(), false))
+            .await
+            .unwrap();
         assert!(base.exists(), "default behaviour must be unchanged");
         let _ = std::fs::remove_dir_all(&dir);
     }

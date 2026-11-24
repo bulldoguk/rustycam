@@ -31,7 +31,10 @@ async fn main() -> Result<()> {
         tokio::spawn(async move {
             loop {
                 if let Err(e) = camera::run(cam.clone(), storage_cfg.clone(), db.clone()).await {
-                    tracing::error!("[{}] Camera task crashed: {e:#} — restarting in 10s", cam.id);
+                    tracing::error!(
+                        "[{}] Camera task crashed: {e:#} — restarting in 10s",
+                        cam.id
+                    );
                     tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 }
             }

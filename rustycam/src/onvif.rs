@@ -25,10 +25,9 @@ const TRIGGER_TOPICS: &[&str] = &[
 
 // Known topics we deliberately ignore — no warning logged for these.
 // CellMotionDetector is Reolink's grid-based motion; too noisy to trigger on.
-const IGNORED_TOPICS: &[&str] = &[
-    "CellMotionDetector",
-    "AudioAlarm",
-];
+// Unused since 0.1.13 restored full topic logging for diagnostics; kept for when they are silenced again.
+#[allow(dead_code)]
+const IGNORED_TOPICS: &[&str] = &["CellMotionDetector", "AudioAlarm"];
 
 #[derive(Debug, Clone)]
 pub struct OnvifEvent {
@@ -130,8 +129,7 @@ pub async fn subscribe(client: &reqwest::Client, cam: &CameraConfig) -> Result<S
     )
     .await?;
 
-    let endpoint = extract_text(&resp, "Address")
-        .unwrap_or_else(|| url.clone());
+    let endpoint = extract_text(&resp, "Address").unwrap_or_else(|| url.clone());
 
     tracing::info!("[{}] ONVIF subscription endpoint: {endpoint}", cam.id);
     Ok(endpoint)
@@ -207,7 +205,8 @@ fn parse_events(xml: &str, camera_id: &str) -> Result<Vec<OnvifEvent>> {
                 if local == "SimpleItem" {
                     let name = attr_value(&e, b"Name").unwrap_or_default();
                     let value = attr_value(&e, b"Value").unwrap_or_default();
-                    let is_active = matches!(value.to_lowercase().as_str(), "true" | "1" | "active");
+                    let is_active =
+                        matches!(value.to_lowercase().as_str(), "true" | "1" | "active");
 
                     if matches!(
                         name.as_str(),
@@ -222,7 +221,9 @@ fn parse_events(xml: &str, camera_id: &str) -> Result<Vec<OnvifEvent>> {
                                     is_active,
                                 });
                             } else {
-                                warn!("[{camera_id}] Unknown ONVIF topic (not triggering): {topic}");
+                                warn!(
+                                    "[{camera_id}] Unknown ONVIF topic (not triggering): {topic}"
+                                );
                             }
                         }
                     }
@@ -308,7 +309,10 @@ mod tests {
         let events = parse_events(&xml, "front_door").unwrap();
         assert_eq!(events.len(), 1);
         assert!(events[0].is_active);
-        assert_eq!(events[0].topic, "tns1:RuleEngine/MyRuleDetector/PeopleDetect");
+        assert_eq!(
+            events[0].topic,
+            "tns1:RuleEngine/MyRuleDetector/PeopleDetect"
+        );
     }
 
     #[test]
@@ -329,7 +333,10 @@ mod tests {
     #[test]
     fn extract_text_finds_address() {
         let xml = r#"<root><Address>http://192.168.1.1/sub</Address></root>"#;
-        assert_eq!(extract_text(xml, "Address"), Some("http://192.168.1.1/sub".to_string()));
+        assert_eq!(
+            extract_text(xml, "Address"),
+            Some("http://192.168.1.1/sub".to_string())
+        );
     }
 
     #[test]
