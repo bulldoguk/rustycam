@@ -17,3 +17,11 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+
+  # Base images (rust builder, alpine runtime). A rust bump stays red in CI
+  # until rust-toolchain.toml is bumped to match.
+  - package-ecosystem: docker
+    directory: /rustycam
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

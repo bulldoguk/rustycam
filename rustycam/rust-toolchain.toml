@@ -1,0 +1,6 @@
+# One Rust version for development, CI and the shipped image.
+# Bump it together with the FROM tag in Dockerfile; CI fails if they differ.
+[toolchain]
+channel = "1.100.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

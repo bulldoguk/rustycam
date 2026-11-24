@@ -16,11 +16,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
+      - name: Dockerfile and rust-toolchain.toml agree on the Rust version
+        run: bash .github/check-rust-version.sh
+
+      - name: Install Rust (the version in rust-toolchain.toml)
+        working-directory: rustycam
+        run: |
+          rustup toolchain install
+          rustc --version
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
