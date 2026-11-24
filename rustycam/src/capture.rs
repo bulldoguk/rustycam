@@ -148,7 +148,7 @@ async fn write_xmp_sidecar(
     // First tag sets the value, subsequent tags append with +=
     let mut args: Vec<String> = vec![
         format!("-XMP-exif:DateTimeOriginal={}", xmp_dt),
-        format!("-XMP-tiff:Make=Reolink"),
+        "-XMP-tiff:Make=Reolink".to_string(),
         format!("-XMP-tiff:Model={}", cam.id),
         format!("-XMP-dc:Description={}", description),
         format!("-XMP-digiKam:TagsList=camera/{}", cam.id),
@@ -198,7 +198,7 @@ async fn tag_file(cam: &CameraConfig, path: &Path, topics: &[String], timestamp:
     let exif_offset = local.format("%:z").to_string();
 
     let mut args: Vec<String> = vec![
-        format!("-Make=Reolink"),
+        "-Make=Reolink".to_string(),
         format!("-Model={}", cam.id),
         format!("-ImageDescription={}", description),
         format!("-Comment={}", description),
