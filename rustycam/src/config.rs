@@ -78,7 +78,6 @@ impl CameraConfig {
     pub fn onvif_event_url(&self) -> String {
         format!("http://{}/onvif/event_service", self.ip)
     }
-
 }
 
 pub fn load(path: &str) -> Result<Config> {
@@ -190,7 +189,10 @@ excluded_topics = ["VehicleDetect"]
             zone: None,
             excluded_topics: vec![],
         };
-        assert_eq!(cam.onvif_event_url(), "http://192.168.20.20/onvif/event_service");
+        assert_eq!(
+            cam.onvif_event_url(),
+            "http://192.168.20.20/onvif/event_service"
+        );
     }
 }
 
@@ -216,10 +218,16 @@ require_mount = true
 path = "/data/rustycam.db"
 "#;
         let cfg: Config = toml::from_str(with).unwrap();
-        assert!(cfg.storage.require_mount, "require_mount must round-trip from run.sh TOML");
+        assert!(
+            cfg.storage.require_mount,
+            "require_mount must round-trip from run.sh TOML"
+        );
 
         let without = with.replace("require_mount = true\n", "");
         let cfg: Config = toml::from_str(&without).unwrap();
-        assert!(!cfg.storage.require_mount, "must default off for existing installs");
+        assert!(
+            !cfg.storage.require_mount,
+            "must default off for existing installs"
+        );
     }
 }
