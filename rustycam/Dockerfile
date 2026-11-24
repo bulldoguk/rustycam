@@ -10,7 +10,7 @@ COPY migrations ./migrations
 RUN cargo build --release
 
 # ---- runtime ----
-FROM alpine:3.21
+FROM alpine:3.24
 
 RUN apk add --no-cache ffmpeg ca-certificates jq bash exiftool tzdata
 
